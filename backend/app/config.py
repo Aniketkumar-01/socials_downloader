@@ -4,11 +4,17 @@ import re
 import json
 from pathlib import Path
 
-# Paths
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-BACKEND_DIR = Path(__file__).resolve().parent.parent
+# Paths with PyInstaller bundle support
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    BASE_DIR = Path(sys._MEIPASS).resolve()
+    FRONTEND_DIR = BASE_DIR / "frontend"
+    BACKEND_DIR = BASE_DIR / "backend"
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    BACKEND_DIR = Path(__file__).resolve().parent.parent
+    FRONTEND_DIR = BASE_DIR / "frontend"
+
 DOWNLOADS_DIR = BASE_DIR / "downloads"
-FRONTEND_DIR = BASE_DIR / "frontend"
 
 # User Data Directory (platformdirs with robust fallback)
 try:

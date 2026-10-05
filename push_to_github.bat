@@ -1,6 +1,6 @@
 @echo off
 echo ============================================================
-echo   OmniDownloader - Git Setup & GitHub Push
+echo   OmniDownloader - Git Setup, Push & Release Publisher
 echo ============================================================
 echo.
 
@@ -19,11 +19,11 @@ if not exist ".git" (
     git init -b main
 )
 
-echo [3/5] Staging files (.gitignore protects cookies.txt and venv)...
+echo [3/5] Staging files (.gitignore protects cookies.txt, venv, and build artifacts)...
 git add .
 
 echo [4/5] Creating commit...
-git commit -m "fix: resilient native folder picker, manual save location input with quote stripping, and session token sync"
+git commit -m "feat: standalone Windows exe packaging, automated GitHub releases, and prerequisites FFmpeg alert banner"
 
 echo [5/5] Setting remote and pushing to GitHub...
 git remote remove origin 2>nul
@@ -31,21 +31,25 @@ git remote add origin https://github.com/Aniketkumar-01/socials_downloader.git
 git branch -M main
 
 echo.
-echo Pushing to https://github.com/Aniketkumar-01/socials_downloader.git...
+echo Pushing code to main branch...
 git push -u origin main
 
-if %errorlevel% equ 0 (
+echo.
+set /p CREATE_RELEASE="Do you want to create and push a v1.0.0 release tag to build OmniDownloader.exe on GitHub? (y/n): "
+if /i "%CREATE_RELEASE%"=="y" (
     echo.
-    echo ============================================================
-    echo   SUCCESS! Repository pushed to GitHub.
-    echo ============================================================
-) else (
+    echo Tagging release v1.0.0...
+    git tag -a v1.0.0 -m "OmniDownloader v1.0.0 Release" 2>nul
+    echo Pushing tag to GitHub to trigger automated .exe build...
+    git push origin v1.0.0 --force
     echo.
-    echo ============================================================
-    echo   Note: If prompted, authenticate with your GitHub account
-    echo   or Personal Access Token (PAT).
-    echo ============================================================
+    echo GitHub Actions is now compiling OmniDownloader.exe!
+    echo Visit: https://github.com/Aniketkumar-01/socials_downloader/actions
 )
 
+echo.
+echo ============================================================
+echo   Repository synced with GitHub!
+echo ============================================================
 echo.
 pause

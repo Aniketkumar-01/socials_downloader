@@ -23,29 +23,43 @@ A modern, fast, local-first web application to download videos, Reels, Shorts, a
 
 ---
 
-## 🚀 Quick Start (Windows 10 / Windows 11)
+## 📦 Standalone Executable (No Python Required!)
 
-### Option 1: 🖥️ Launch as Windows PC Desktop Application (Recommended)
-Double-click **`OmniDownloader.vbs`** in this folder:
-- Launches as a **full-fledged standalone Windows desktop application**.
-- **No browser tabs, no address bars, and no terminal console window** popping up.
-- Integrates with Windows 10/11 snap layouts, taskbar, and native window controls.
+Users can run OmniDownloader without installing Python or dependencies:
 
-> **💡 Tip**: Double-click **`create_desktop_shortcut.vbs`** to place an **OmniDownloader** shortcut directly onto your Windows Desktop!
+1. Go to the [**GitHub Releases**](https://github.com/Aniketkumar-01/socials_downloader/releases) page.
+2. Download **`OmniDownloader.exe`**.
+3. Double-click **`OmniDownloader.exe`**.
+4. The app will launch in your default web browser at `http://127.0.0.1:8000`.
+5. Paste any video or playlist link and start downloading!
 
-### Option 2: Double-click launcher (`start.bat`)
-Double-click `start.bat`. It will verify Python, prepare `venv`, install dependencies, and launch the standalone desktop app window.
+> **⚠️ Prerequisites for 1080p, 4K & MP3**:
+> YouTube and major platforms split high-resolution streams into separate video and audio channels. Merging them requires **FFmpeg**.
+> - You can install FFmpeg with **1-click** right inside the app interface.
+> - Or run this command in terminal/PowerShell:
+>   ```powershell
+>   winget install Gyan.FFmpeg
+>   ```
 
-### Option 3: PowerShell
-Run:
+---
+
+## 🛠️ Building the `.exe` Locally
+
+To build your own standalone Windows executable from source:
+1. Double-click **`build_exe.bat`** in this folder (or run `pyinstaller --clean omnidownloader.spec`).
+2. The compiled binary will be placed at **`dist\OmniDownloader.exe`**.
+
+---
+
+## 🚀 Developer / Source Quick Start (Windows)
+
+### Option 1: Double-click launcher (`start.bat`)
+Double-click `start.bat`. It will prepare `venv`, install dependencies, and launch the application.
+
+### Option 2: Run Python Desktop Launcher
 ```powershell
-.\start.ps1
-```
-
-### Option 4: Python Desktop Controller
-```powershell
-.\venv\Scripts\activate
-python desktop.py
+pip install -r backend/requirements.txt
+python launcher.py
 ```
 
 ---

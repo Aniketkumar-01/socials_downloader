@@ -490,6 +490,112 @@ if ($b -and $b.Self.Path) {{
 
     return {"status": "cancelled", "download_dir": curr, "path": curr}
 
+@app.get("/api/system-status")
+async def get_system_status():
+    """
+    Returns system readiness status including FFmpeg availability,
+    recommended resolution options, and installation instructions.
+    """
+    from app.downloader import get_ffmpeg_path
+    ff_path = get_ffmpeg_path()
+    has_ffmpeg = bool(ff_path and Path(ff_path).is_file())
+    
+    return {
+        "status": "ready" if has_ffmpeg else "warning",
+        "ffmpeg_installed": has_ffmpeg,
+        "ffmpeg_path": ff_path if has_ffmpeg else None,
+        "recommended_winget": "winget install Gyan.FFmpeg",
+        "official_download_url": "https://www.gyan.dev/ffmpeg/builds/",
+        "message": (
+            "FFmpeg is ready. High-resolution stream merging (1080p, 4K) and MP3 conversion are active."
+            if has_ffmpeg else
+            "FFmpeg is required for 1080p/4K video merging and MP3 audio conversion."
+        )
+    }
+
+@app.post("/api/install-ffmpeg")
+async def auto_install_ffmpeg():
+    """
+    Attempts automated 1-click installation of FFmpeg for Windows:
+    1. Try running `winget install Gyan.FFmpeg`
+    2. Fallback to downloading standalone binaries from official builds into USER_DATA_DIR / 'ffmpeg.exe'.
+    """
+    import urllib.request
+    import zipfile
+    import io
+    from app.downloader import get_ffmpeg_path, ensure_ffmpeg_in_path
+    from app.config import USER_DATA_DIR
+
+    curr = get_ffmpeg_path()
+    if curr and Path(curr).is_file():
+        return {"status": "success", "message": "FFmpeg is already installed and ready.", "ffmpeg_path": curr}
+
+    # 1. Try winget if on Windows
+    if os.name == 'nt':
+        try:
+            logger.info("Attempting automated winget installation of Gyan.FFmpeg...")
+            proc = await asyncio.create_subprocess_exec(
+                "winget", "install", "Gyan.FFmpeg", "--accept-package-agreements", "--accept-source-agreements", "--silent",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            try:
+                await asyncio.wait_for(proc.communicate(), timeout=35.0)
+                ff = get_ffmpeg_path()
+                if ff and Path(ff).is_file():
+                    return {"status": "success", "message": "FFmpeg installed successfully via winget!", "ffmpeg_path": ff}
+            except asyncio.TimeoutError:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"Winget install attempt notice: {e}")
+
+    # 2. Try direct download of standalone ffmpeg.exe into USER_DATA_DIR
+    target_exe = USER_DATA_DIR / "ffmpeg.exe"
+    download_urls = [
+        "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+        "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    ]
+
+    loop = asyncio.get_running_loop()
+
+    def _download_and_extract():
+        for url in download_urls:
+            try:
+                logger.info(f"Downloading FFmpeg from {url}...")
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    data = resp.read()
+                
+                with zipfile.ZipFile(io.BytesIO(data)) as z:
+                    for filename in z.namelist():
+                        if filename.endswith("ffmpeg.exe"):
+                            with z.open(filename) as src, open(target_exe, "wb") as dst:
+                                dst.write(src.read())
+                            ensure_ffmpeg_in_path(str(target_exe))
+                            return str(target_exe)
+            except Exception as ex:
+                logger.warning(f"Download attempt from {url} failed: {ex}")
+        return None
+
+    try:
+        installed = await loop.run_in_executor(None, _download_and_extract)
+        if installed and Path(installed).is_file():
+            return {
+                "status": "success",
+                "message": "FFmpeg successfully installed and registered!",
+                "ffmpeg_path": installed
+            }
+    except Exception as e:
+        logger.error(f"Automated FFmpeg download failed: {e}")
+
+    raise HTTPException(
+        status_code=500,
+        detail="Automated install failed. Please open PowerShell and run 'winget install Gyan.FFmpeg' or visit https://www.gyan.dev/ffmpeg/builds/"
+    )
+
 # --------------------------------------------------------------------------
 # Task 3: Cookie Validation & Lifecycle
 # --------------------------------------------------------------------------

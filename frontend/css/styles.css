@@ -312,6 +312,176 @@ body {
   word-break: break-word;
 }
 
+/* Prerequisites Banner (FFmpeg Setup) */
+.prereq-banner {
+  background: rgba(18, 15, 8, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(245, 158, 11, 0.08);
+  animation: slideDown var(--duration-base) var(--ease-out-expo);
+}
+
+.prereq-banner.prereq-ready {
+  background: rgba(8, 20, 16, 0.85);
+  border-color: rgba(0, 240, 181, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 240, 181, 0.08);
+}
+
+.prereq-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  flex: 1;
+  min-width: 260px;
+}
+
+.prereq-triangle-icon {
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  animation: trianglePulse 2.5s infinite ease-in-out;
+}
+
+.prereq-ready .prereq-triangle-icon {
+  color: var(--accent-primary);
+  animation: none;
+}
+
+@keyframes trianglePulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.8));
+  }
+}
+
+.prereq-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.prereq-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.prereq-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.prereq-ready .prereq-title {
+  color: var(--accent-primary);
+}
+
+.prereq-badge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.12rem 0.4rem;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-xs);
+  color: #fbbf24;
+}
+
+.prereq-ready .prereq-badge {
+  background: rgba(0, 240, 181, 0.15);
+  border-color: rgba(0, 240, 181, 0.3);
+  color: var(--accent-primary);
+}
+
+.prereq-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.prereq-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.btn-prereq-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+}
+
+.btn-prereq-primary {
+  background: #f59e0b;
+  color: #080a0f;
+  border: none;
+}
+
+.btn-prereq-primary:hover:not(:disabled) {
+  background: #fbbf24;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+
+.btn-prereq-chip {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-medium);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.btn-prereq-chip:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.prereq-copy-icon {
+  margin-left: 0.2rem;
+  opacity: 0.7;
+}
+
+.btn-prereq-close {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--duration-fast) ease;
+}
+
+.btn-prereq-close:hover {
+  color: var(--text-primary);
+}
+
 /* Command Deck: Primary Input Area */
 .command-deck {
   background: var(--bg-shell);

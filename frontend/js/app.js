@@ -7,7 +7,9 @@ import {
   getDownloadDir,
   setDownloadDir,
   chooseFolder,
-  syncAuthToken
+  syncAuthToken,
+  getSystemStatus,
+  installFfmpeg
 } from "./api.js";
 import { ProgressTracker } from "./progress.js";
 
@@ -25,6 +27,12 @@ const toastContainer = document.getElementById("toast-container");
 
 const errorAlert = document.getElementById("error-alert");
 const errorMessage = document.getElementById("error-message");
+
+const prerequisitesBanner = document.getElementById("prerequisites-banner");
+const btnInstallFfmpeg = document.getElementById("btn-install-ffmpeg");
+const btnInstallFfmpegText = document.getElementById("btn-install-ffmpeg-text");
+const btnCopyWinget = document.getElementById("btn-copy-winget");
+const btnDismissPrereq = document.getElementById("btn-dismiss-prereq");
 
 const mediaCard = document.getElementById("media-card");
 const mediaThumb = document.getElementById("media-thumb");
@@ -801,5 +809,92 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Prerequisites & FFmpeg Readiness Checker
+async function checkPrerequisites() {
+  if (!prerequisitesBanner) return;
+  try {
+    const status = await getSystemStatus();
+    if (status && status.ffmpeg_installed) {
+      prerequisitesBanner.style.display = "none";
+    } else {
+      prerequisitesBanner.style.display = "flex";
+    }
+  } catch (err) {
+    console.debug("Prerequisites check notice:", err);
+  }
+}
+
+// 1-Click Install FFmpeg handler
+if (btnInstallFfmpeg) {
+  btnInstallFfmpeg.addEventListener("click", async () => {
+    try {
+      btnInstallFfmpeg.disabled = true;
+      if (btnInstallFfmpegText) {
+        btnInstallFfmpegText.textContent = "Installing FFmpeg (approx 30s)...";
+      }
+      showToast("Downloading and installing FFmpeg in background...", "info");
+
+      const res = await installFfmpeg();
+      showToast(res.message || "FFmpeg installed successfully!", "success");
+
+      // Visual success confirmation in banner
+      prerequisitesBanner.classList.add("prereq-ready");
+      const titleEl = prerequisitesBanner.querySelector(".prereq-title");
+      const descEl = document.getElementById("prereq-desc");
+      if (titleEl) titleEl.textContent = "✓ FFmpeg Ready";
+      if (descEl) descEl.textContent = "High-resolution stream merging (1080p, 4K) and MP3 conversion are now active.";
+
+      btnInstallFfmpeg.style.display = "none";
+
+      setTimeout(() => {
+        prerequisitesBanner.style.transition = "all 0.5s ease";
+        prerequisitesBanner.style.opacity = "0";
+        setTimeout(() => {
+          prerequisitesBanner.style.display = "none";
+        }, 500);
+      }, 4000);
+    } catch (err) {
+      console.error("FFmpeg install error:", err);
+      showError(err.message || "Could not install FFmpeg automatically. Please use the winget command below.");
+      btnInstallFfmpeg.disabled = false;
+      if (btnInstallFfmpegText) {
+        btnInstallFfmpegText.textContent = "Retry 1-Click Install";
+      }
+    }
+  });
+}
+
+// Copy winget command to clipboard
+if (btnCopyWinget) {
+  btnCopyWinget.addEventListener("click", async () => {
+    const cmd = "winget install Gyan.FFmpeg";
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(cmd);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = cmd;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      showToast("Copied command: 'winget install Gyan.FFmpeg'", "info");
+    } catch (err) {
+      showToast(`Run in terminal: ${cmd}`, "info");
+    }
+  });
+}
+
+// Dismiss prerequisites banner
+if (btnDismissPrereq) {
+  btnDismissPrereq.addEventListener("click", () => {
+    if (prerequisitesBanner) {
+      prerequisitesBanner.style.display = "none";
+    }
+  });
+}
+
 // Initialize on load
 initDownloadDir();
+checkPrerequisites();

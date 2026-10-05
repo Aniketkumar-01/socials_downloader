@@ -194,3 +194,28 @@ export async function deleteCookiesFile() {
   return await response.json();
 }
 
+export async function getSystemStatus() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/system-status`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to retrieve system status");
+  }
+  return await response.json();
+}
+
+export async function installFfmpeg() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/install-ffmpeg`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Automated installation failed");
+  }
+  return await response.json();
+}
+

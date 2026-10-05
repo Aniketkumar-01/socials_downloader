@@ -1,0 +1,71 @@
+name: Build & Publish Windows Executable Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build OmniDownloader.exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pyinstaller
+
+      - name: Build Standalone Executable
+        run: |
+          pyinstaller --clean omnidownloader.spec
+
+      - name: Verify Executable Built
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/OmniDownloader.exe")) {
+            Write-Error "dist/OmniDownloader.exe was not created!"
+            exit 1
+          }
+          $size = (Get-Item "dist/OmniDownloader.exe").Length / 1MB
+          Write-Host "OmniDownloader.exe successfully generated ($([math]::Round($size, 2)) MB)"
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "OmniDownloader Release ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/OmniDownloader.exe
+          body: |
+            ## 🚀 OmniDownloader ${{ github.ref_name }}
+
+            ### 📦 Quick Start (Windows)
+            1. Download **`OmniDownloader.exe`** attached below.
+            2. Double-click **`OmniDownloader.exe`** to start.
+            3. The app will launch in your default web browser at `http://127.0.0.1:8000`.
+            4. Paste any video or playlist link (YouTube, Instagram, TikTok, etc.) to start downloading!
+
+            ### ⚠️ Prerequisites for High-Res (1080p/4K) and MP3:
+            - Stream combination requires **FFmpeg**.
+            - Click the **1-Click Install FFmpeg** button directly inside the app, or run:
+              ```powershell
+              winget install Gyan.FFmpeg
+              ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
