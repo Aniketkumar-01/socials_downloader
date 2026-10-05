@@ -98,6 +98,8 @@ def generate_with_pillow():
 
 def generate_with_powershell():
     """Windows native .NET fallback if Pillow is unavailable."""
+    ico_path = str(ico_target).replace("\\", "\\\\")
+    png_path = str(png_target).replace("\\", "\\\\")
     ps_cmd = f"""
 Add-Type -AssemblyName System.Drawing
 $width = 256
@@ -122,10 +124,10 @@ $g.FillPolygon($arrowBrush, $points)
 
 $hIcon = $bmp.GetHicon()
 $icon = [System.Drawing.Icon]::FromHandle($hIcon)
-$fs = New-Object System.IO.FileStream('{str(ico_target).replace("\\", "\\\\")}', [System.IO.FileMode]::Create)
+$fs = New-Object System.IO.FileStream('{ico_path}', [System.IO.FileMode]::Create)
 $icon.Save($fs)
 $fs.Close()
-$bmp.Save('{str(png_target).replace("\\", "\\\\")}', [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Save('{png_path}', [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose()
 $bmp.Dispose()
 Write-Host "Native PowerShell icon generation complete."

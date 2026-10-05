@@ -150,12 +150,13 @@ def launch_desktop():
     browser_exe = find_windows_browser_app_executable()
     if browser_exe:
         logger.info(f"Launching standalone Windows PC application window via: {browser_exe}")
+        profile_dir = os.path.expandvars(r'%LOCALAPPDATA%\OmniDownloader\DesktopProfile')
         cmd = [
             browser_exe,
             f"--app={app_url}",
             "--window-size=1120,820",
             "--app-id=OmniDownloader",
-            f"--user-data-dir={os.path.expandvars(r'%LOCALAPPDATA%\OmniDownloader\DesktopProfile')}",
+            f"--user-data-dir={profile_dir}",
             "--no-first-run",
             "--no-default-browser-check"
         ]
