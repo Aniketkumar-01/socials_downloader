@@ -17,7 +17,6 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import (
-    BASE_DIR,
     DOWNLOADS_DIR,
     FRONTEND_DIR,
     SERVER_HOST,
@@ -92,17 +91,12 @@ async def security_and_auth_middleware(request: Request, call_next):
             }
         )
 
-    # 2. Origin validation: if Origin header is present, ensure it matches our origin
+    # 2. Origin validation: if Origin header is present, ensure it matches local loopback
     origin = request.headers.get("origin")
     if origin:
         origin_clean = origin.strip().lower()
-        allowed_origins = {
-            f"http://127.0.0.1:{SERVER_PORT}",
-            f"http://localhost:{SERVER_PORT}",
-            "http://127.0.0.1",
-            "http://localhost",
-        }
-        if origin_clean not in allowed_origins:
+        valid_origin = bool(re.match(r"^https?://(127\.0\.0\.1|localhost|testserver)(:\d+)?$", origin_clean))
+        if not valid_origin:
             return JSONResponse(
                 status_code=403,
                 content={
@@ -124,7 +118,7 @@ async def security_and_auth_middleware(request: Request, call_next):
                 status_code=403,
                 content={
                     "code": "FORBIDDEN",
-                    "message": "Missing or invalid session authentication token.",
+                    "message": "Access denied: Invalid or missing session authentication token.",
                     "hint": "Provide valid token in X-Omni-Token header or ?token= query parameter.",
                     "source": "app"
                 }

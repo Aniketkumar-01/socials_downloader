@@ -2,11 +2,18 @@ import os
 import re
 import shutil
 import logging
-from typing import Dict, Any, Callable, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
 import yt_dlp
 
-from app.config import DOWNLOADS_DIR, sanitize_filename
+from app.config import (
+    DOWNLOADS_DIR,
+    sanitize_filename,
+    COOKIES_FILE,
+    BASE_DIR,
+    is_cookie_probing_allowed,
+    USER_DATA_DIR,
+)
 from app.models import MediaInfoResponse, VideoItem, ErrorDetail
 
 logger = logging.getLogger(__name__)
@@ -386,7 +393,6 @@ def extract_media_info(
         logger.warning(f"Standard extraction notice: {clean_error_message(str(last_error))}")
 
     # Step 2: Probe local browsers on user's PC for YouTube only if user opted in
-    from app.config import COOKIES_FILE, BASE_DIR, is_cookie_probing_allowed
     has_cookies = (cookie_file and Path(cookie_file).exists()) or COOKIES_FILE.exists() or (BASE_DIR / "cookies.txt").exists()
     if not info and platform == "youtube" and not has_cookies and is_cookie_probing_allowed():
         for candidate in ['edge', 'chrome', 'firefox', 'brave']:
@@ -543,8 +549,6 @@ def extract_media_info(
             filesize_formatted=best_formatted
         )
 
-import os
-import shutil
 
 def ensure_ffmpeg_in_path(ffmpeg_exe: str) -> None:
     """
@@ -574,8 +578,6 @@ def get_ffmpeg_path() -> Optional[str]:
     Locates FFmpeg executable consistently from bundled imageio-ffmpeg package.
     Ensures a canonical 'ffmpeg.exe' is available in USER_DATA_DIR and registered in process PATH.
     """
-    from app.config import USER_DATA_DIR
-
     # 1. Canonical ffmpeg.exe in USER_DATA_DIR
     canonical_ffmpeg = USER_DATA_DIR / "ffmpeg.exe"
     if canonical_ffmpeg.is_file():
@@ -609,10 +611,6 @@ def get_ffmpeg_path() -> Optional[str]:
             return str(canonical_ffmpeg)
         except Exception as e:
             logger.warning(f"Failed to cache canonical FFmpeg: {e}")
-            ensure_ffmpeg_in_path(discovered)
-            return discovered
-
-    return None
             ensure_ffmpeg_in_path(discovered)
             return discovered
 

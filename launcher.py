@@ -6,7 +6,6 @@ Ensures visible feedback, persistent logging, native standalone app shell, and z
 
 import os
 import sys
-import time
 import socket
 import logging
 import threading

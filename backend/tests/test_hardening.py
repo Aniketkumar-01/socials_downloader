@@ -1,18 +1,16 @@
 import os
 import secrets
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app, API_TOKEN
 from app.config import (
-    DOWNLOADS_DIR,
     sanitize_filename,
-    WINDOWS_RESERVED_NAMES,
     MAX_COOKIE_SIZE
 )
-from app.models import DownloadRequest, CookieBrowserEnum, DownloadTaskStatus
+from app.models import DownloadRequest, DownloadTaskStatus
 from app.task_manager import task_manager, CancelledDownload
 
 client = TestClient(app)

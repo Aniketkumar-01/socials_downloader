@@ -4,8 +4,6 @@ Generates high-resolution multi-size Windows icon (app.ico) and application logo
 Saves directly into the assets/ directory.
 """
 
-import os
-import sys
 from pathlib import Path
 
 tools_dir = Path(__file__).resolve().parent

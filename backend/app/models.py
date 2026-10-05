@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Union
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
 
