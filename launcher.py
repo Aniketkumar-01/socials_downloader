@@ -14,6 +14,58 @@ import subprocess
 from pathlib import Path
 
 # --------------------------------------------------------------------------
+# Windows Mount Point and Symlink Hardening (WinError 448 Mitigation)
+# --------------------------------------------------------------------------
+_orig_realpath = getattr(os.path, '_orig_realpath', os.path.realpath)
+os.path._orig_realpath = _orig_realpath
+
+def _safe_realpath(path, *args, **kwargs):
+    try:
+        return _orig_realpath(path, *args, **kwargs)
+    except OSError:
+        try:
+            return os.path.abspath(path)
+        except Exception:
+            return str(path)
+
+os.path.realpath = _safe_realpath
+
+def sanitize_system_path():
+    if os.name != 'nt':
+        return
+    path_env = os.environ.get("PATH", "")
+    if not path_env:
+        return
+    cleaned = []
+    seen = set()
+    for entry in path_env.split(os.pathsep):
+        entry_clean = entry.strip().strip('"\'')
+        if not entry_clean:
+            continue
+        normed = os.path.normcase(entry_clean)
+        if normed in seen:
+            continue
+        seen.add(normed)
+        try:
+            _orig_realpath(entry_clean)
+            cleaned.append(entry_clean)
+        except OSError:
+            replacement = None
+            try:
+                target = os.readlink(entry_clean)
+                if not os.path.isabs(target):
+                    target = os.path.join(os.path.dirname(entry_clean), target)
+                if os.path.exists(target):
+                    replacement = target
+            except Exception:
+                replacement = None
+            if replacement:
+                cleaned.append(replacement)
+    os.environ["PATH"] = os.pathsep.join(cleaned)
+
+sanitize_system_path()
+
+# --------------------------------------------------------------------------
 # Step 1: Immediate Directory & Logging Initialization
 # --------------------------------------------------------------------------
 def get_user_data_dir() -> Path:

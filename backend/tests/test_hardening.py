@@ -310,4 +310,46 @@ def test_error_mapping_categories():
     assert err.code == "CONNECTION_TIMEOUT"
     assert "vpn" in err.hint.lower()
 
+    # Untrusted mount point (WinError 448)
+    err = map_ytdlp_error("[WinError 448] The path cannot be traversed because it contains an untrusted mount point: 'C:\\Users\\anike\\AppData\\Local\\Author Software\\nvm\\.nodejs'")
+    assert err.code == "UNTRUSTED_MOUNT_POINT"
+    assert "untrusted mount point" in err.message.lower()
+    assert "nvm" in err.hint.lower()
+
+
+def test_safe_realpath_handles_untrusted_mount_point():
+    """Verify that os.path.realpath does not crash on WinError 448."""
+    from app.config import _orig_realpath
+
+    fake_untrusted_path = r"C:\fake\untrusted\mount\.nodejs"
+    with patch("os.path._orig_realpath", side_effect=OSError(448, "The path cannot be traversed because it contains an untrusted mount point")):
+        resolved = os.path.realpath(fake_untrusted_path)
+        assert resolved == os.path.abspath(fake_untrusted_path)
+
+
+def test_sanitize_system_path_filters_untrusted_mount():
+    """Verify that sanitize_system_path omits or resolves untrusted reparse points."""
+    from app.config import sanitize_system_path, _orig_realpath
+
+    fake_valid = r"C:\Windows\System32"
+    fake_untrusted = r"C:\fake\untrusted\mount"
+
+    def mock_orig_realpath(p, *args, **kwargs):
+        if "untrusted" in p:
+            raise OSError(448, "Untrusted mount point")
+        return _orig_realpath(p, *args, **kwargs)
+
+    orig_path = os.environ.get("PATH", "")
+    try:
+        os.environ["PATH"] = f"{fake_valid};{fake_untrusted}"
+        with patch("os.path._orig_realpath", side_effect=mock_orig_realpath):
+            with patch("os.readlink", side_effect=OSError("Not a link")):
+                sanitize_system_path()
+                current_path = os.environ.get("PATH", "")
+                assert fake_valid in current_path
+                assert fake_untrusted not in current_path
+    finally:
+        os.environ["PATH"] = orig_path
+
+
 

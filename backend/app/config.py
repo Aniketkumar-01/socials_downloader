@@ -2,7 +2,103 @@ import os
 import sys
 import re
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger("OmniDownloader.Config")
+
+# --------------------------------------------------------------------------
+# Windows Mount Point and Symlink Hardening (WinError 448 Mitigation)
+# --------------------------------------------------------------------------
+_orig_realpath = getattr(os.path, '_orig_realpath', os.path.realpath)
+os.path._orig_realpath = _orig_realpath
+
+def _safe_realpath(path, *args, **kwargs):
+    """
+    Hardened wrapper around os.path.realpath that prevents crashes on Windows
+    when encountering untrusted reparse points / junctions (WinError 448:
+    ERROR_UNTRUSTED_MOUNT_POINT) or corrupted symlinks.
+    """
+    try:
+        return _orig_realpath(path, *args, **kwargs)
+    except OSError:
+        try:
+            return os.path.abspath(path)
+        except Exception:
+            return str(path)
+
+os.path.realpath = _safe_realpath
+
+def sanitize_system_path():
+    """
+    Inspects os.environ['PATH'] and replaces or removes untrusted junction/mount
+    points (such as NVM for Windows .nodejs) that trigger WinError 448 during
+    file resolution or subprocess execution.
+    """
+    if os.name != 'nt':
+        return
+
+    path_env = os.environ.get("PATH", "")
+    if not path_env:
+        return
+
+    cleaned = []
+    seen = set()
+    for entry in path_env.split(os.pathsep):
+        entry_clean = entry.strip().strip('"\'')
+        if not entry_clean:
+            continue
+
+        normed = os.path.normcase(entry_clean)
+        if normed in seen:
+            continue
+        seen.add(normed)
+
+        # Test if the path triggers WinError 448 (ERROR_UNTRUSTED_MOUNT_POINT)
+        try:
+            _orig_realpath(entry_clean)
+            cleaned.append(entry_clean)
+        except OSError as e:
+            # Untrusted mount point or unresolvable reparse point
+            replacement = None
+            try:
+                target = os.readlink(entry_clean)
+                if not os.path.isabs(target):
+                    target = os.path.join(os.path.dirname(entry_clean), target)
+                if os.path.exists(target):
+                    replacement = target
+            except Exception:
+                replacement = None
+
+            if replacement:
+                logger.info(
+                    f"Resolved untrusted junction in PATH '{entry_clean}' to target '{replacement}'"
+                )
+                cleaned.append(replacement)
+            else:
+                logger.warning(
+                    f"Excluding untrusted/broken mount point from PATH environment: '{entry_clean}' ({e})"
+                )
+
+    os.environ["PATH"] = os.pathsep.join(cleaned)
+
+sanitize_system_path()
+
+# Defensively patch yt_dlp's JS runtime exe finder if yt_dlp is installed
+try:
+    import yt_dlp.utils._jsruntime as _jsruntime
+    _orig_find_exe = getattr(_jsruntime, '_orig_find_exe', _jsruntime._find_exe)
+    _jsruntime._orig_find_exe = _orig_find_exe
+
+    def _safe_find_exe(basename: str) -> str:
+        try:
+            return _orig_find_exe(basename)
+        except OSError:
+            return basename
+
+    _jsruntime._find_exe = _safe_find_exe
+except Exception:
+    pass
 
 # Paths with PyInstaller bundle support
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):

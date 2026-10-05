@@ -226,6 +226,12 @@ def map_ytdlp_error(err: Any) -> ErrorDetail:
             message="Connection to media host timed out or was refused.",
             hint="If this platform (e.g. TikTok) is restricted in your area, you may need a VPN."
         )
+    if "untrusted mount point" in clean_lower or "winerror 448" in clean_lower:
+        return ErrorDetail(
+            code="UNTRUSTED_MOUNT_POINT",
+            message="Windows security policy blocked path traversal due to an untrusted mount point in system PATH.",
+            hint="Reset NVM with 'nvm use <version>' as Administrator or check for broken junction links in your system PATH."
+        )
 
     return ErrorDetail(
         code="UNKNOWN",
