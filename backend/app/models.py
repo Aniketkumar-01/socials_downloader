@@ -14,13 +14,15 @@ def validate_http_url(v: str) -> str:
     if not v or not isinstance(v, str):
         raise ValueError("URL cannot be empty.")
     v = v.strip()
+    if len(v) > 2048:
+        raise ValueError("URL exceeds maximum length of 2048 characters.")
     parsed = urlparse(v)
     if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
         raise ValueError("URL must have an http or https scheme.")
     return v
 
 class InfoRequest(BaseModel):
-    url: str = Field(..., description="Media URL (http/https only)")
+    url: str = Field(..., max_length=2048, description="Media URL (http/https only)")
     cookie_browser: Optional[CookieBrowserEnum] = Field(default=CookieBrowserEnum.none)
 
     @field_validator("url")
@@ -55,14 +57,14 @@ class MediaInfoResponse(BaseModel):
     filesize_formatted: Optional[str] = None
 
 class DownloadRequest(BaseModel):
-    url: str
+    url: str = Field(..., max_length=2048, description="Media URL (http/https only)")
     is_playlist: bool = False
     selected_video_ids: Optional[List[str]] = None
-    quality: str = "best"  # "best", "1080p", "720p", "480p", "audio_mp3"
+    quality: str = Field(default="best", max_length=50)  # "best", "1080p", "720p", "480p", "audio_mp3"
     save_to_local_folder: bool = True
     cookie_browser: Optional[CookieBrowserEnum] = Field(default=CookieBrowserEnum.none)
     auto_probe_browsers: bool = False
-    download_dir: Optional[str] = None
+    download_dir: Optional[str] = Field(default=None, max_length=1000)
 
     @field_validator("url")
     @classmethod
@@ -70,12 +72,13 @@ class DownloadRequest(BaseModel):
         return validate_http_url(v)
 
 class SetDownloadDirRequest(BaseModel):
-    download_dir: str
+    download_dir: str = Field(..., min_length=1, max_length=1000)
 
 class ErrorDetail(BaseModel):
     code: str
     message: str
     hint: str
+    source: str = "platform"  # "platform" (YouTube/host), "network" (internet), "system" (computer/ffmpeg), "app" (OmniDownloader)
 
 class DownloadTaskStatus(BaseModel):
     task_id: str

@@ -33,8 +33,16 @@ export class ProgressTracker {
       this.close();
     } else if (data.status === "error" || data.status === "failed") {
       this.isFinished = true;
-      this.onError(data.error_message || "An error occurred during download.");
+      const msg = data.error_message || "An error occurred during download.";
+      const err = new Error(msg);
+      if (data.error_detail) {
+        err.code = data.error_detail.code || "UNKNOWN";
+        err.hint = data.error_detail.hint || "";
+        err.source = data.error_detail.source || "platform";
+      }
+      this.onError(err);
       this.close();
+      return;
     } else if (data.status === "cancelled") {
       this.isFinished = true;
       this.onCancel(data);

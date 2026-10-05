@@ -40,3 +40,13 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Internal specifications, tasks & scratch files
+tasks/
+SPEC.md
+ARCHITECTURE.md
+DESIGN.md
+PRODUCT.md
+iterations_done.md
+push.bat
+desktop.py

@@ -88,18 +88,24 @@ def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int
             if not matching:
                 return None
 
-        matching.sort(
-            key=lambda f: (
-                get_format_resolution(f),
-                f.get('tbr') or f.get('vbr') or 0
-            ),
-            reverse=True
-        )
+        def format_score(f: Dict[str, Any]) -> tuple:
+            res = get_format_resolution(f)
+            vc = (f.get('vcodec') or '').lower()
+            # Prioritize efficient modern streams that yt-dlp actually downloads (AV1 > VP9 > H.264)
+            codec_rank = 3 if 'av01' in vc else (2 if 'vp9' in vc or 'vp09' in vc else (1 if 'avc' in vc or 'h264' in vc else 0))
+            size = f.get('filesize') or f.get('filesize_approx') or 0
+            bitrate = f.get('tbr') or f.get('vbr') or 0
+            # For 4K, avoid inflated peak bitrate containers, target realistic VBR ~6000kbps
+            bitrate_metric = -abs(bitrate - 6000) if res >= 2000 and bitrate > 0 else bitrate
+            return (res, codec_rank, size > 0, bitrate_metric)
+
+        matching.sort(key=format_score, reverse=True)
         chosen = matching[0]
         v_size = estimate_format_bytes(chosen, duration)
         if not v_size and duration and duration > 0:
             target_res = target_dim or get_format_resolution(chosen) or 720
-            typical_kbps = {2160: 12000, 1440: 6000, 1080: 3500, 720: 2000, 480: 1000, 360: 600}.get(target_res, 1500)
+            # Realistic average VBR bitrates (in kbps): 4K ~6000k, 2K ~3800k, 1080p ~2500k, 720p ~1400k
+            typical_kbps = {2160: 6000, 1440: 3800, 1080: 2500, 720: 1400, 480: 750, 360: 450}.get(target_res, 1200)
             v_size = int((typical_kbps * 1000 / 8) * float(duration))
 
         if not v_size:
@@ -214,13 +220,11 @@ class MediaExtractionError(Exception):
 
 def map_ytdlp_error(err: Any) -> ErrorDetail:
     """
-    Standardized mapping of yt-dlp exceptions to {code, message, hint}.
-    Supported codes:
-    PRIVATE_VIDEO, AGE_RESTRICTED, GEO_BLOCKED, MEMBERS_ONLY,
-    RATE_LIMITED, LIVE_STREAM, BOT_CHECK, FFMPEG_MISSING, ENGINE_OUTDATED, UNKNOWN.
+    Standardized mapping of yt-dlp exceptions to layman-friendly {code, message, hint, source}.
+    Clearly identifies whether the issue originates from the Platform (YouTube/host),
+    Network (internet connection), System (local computer setup), or Application.
     """
     clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', str(err)).strip()
-    # Strip any external website or wiki URLs from the error message
     clean = re.sub(r'https?://\S+', '', clean).strip()
     clean = re.sub(r'\s{2,}', ' ', clean)
     clean_lower = clean.lower()
@@ -228,74 +232,86 @@ def map_ytdlp_error(err: Any) -> ErrorDetail:
     if "private video" in clean_lower or "this video is private" in clean_lower:
         return ErrorDetail(
             code="PRIVATE_VIDEO",
-            message="This video is marked private by the owner.",
-            hint="Select your logged-in browser from the Cookies selector or upload a cookies file."
+            message="This video is marked private by the owner on YouTube.",
+            hint="Only the video creator and invited users can access private videos. If you have permission, select your signed-in browser from the Cookies dropdown.",
+            source="platform"
         )
     if "age-restricted" in clean_lower or "confirm your age" in clean_lower or "sign in to view" in clean_lower:
         return ErrorDetail(
             code="AGE_RESTRICTED",
-            message="This video is age-restricted and requires account verification.",
-            hint="Select your logged-in browser (Chrome or Edge) from the Cookies dropdown to authenticate locally."
+            message="This video is age-restricted on YouTube and requires an account over 18.",
+            hint="Select your logged-in browser (Chrome or Edge) from the 'Cookies / Auth' dropdown to authenticate locally.",
+            source="platform"
         )
     if "not a bot" in clean_lower or "bot verification" in clean_lower or "sign in to confirm" in clean_lower or "confirm you" in clean_lower:
         return ErrorDetail(
             code="BOT_CHECK",
-            message="YouTube requested bot verification for this video.",
-            hint="Select your browser (Edge or Chrome) from the 'Cookies / Auth' dropdown to authenticate directly on your PC."
+            message="YouTube requested bot verification to confirm you are human.",
+            hint="This is a standard YouTube security challenge, not an app error. Select your browser (Edge or Chrome) from the 'Cookies / Auth' dropdown to authenticate directly on your PC.",
+            source="platform"
         )
     if "available in your country" in clean_lower or "not available in your country" in clean_lower or "geo-restricted" in clean_lower or "blocked it in your country" in clean_lower:
         return ErrorDetail(
             code="GEO_BLOCKED",
-            message="This video is not available in your geographical region.",
-            hint="Use a VPN or proxy in an authorized region."
+            message="This video is not available in your geographical country or region.",
+            hint="The content owner restricted this video geographically. Connect through a VPN to an authorized country and try again.",
+            source="platform"
         )
     if "members-only" in clean_lower or "members only" in clean_lower or "join this channel" in clean_lower:
         return ErrorDetail(
             code="MEMBERS_ONLY",
-            message="This video is restricted to channel members only.",
-            hint="Authenticate with a local browser session subscribed to this channel."
+            message="This video is restricted to paid channel members only.",
+            hint="Only channel members can access this video. If you are a member, select your signed-in browser from the Cookies dropdown.",
+            source="platform"
         )
     if "http error 429" in clean_lower or "too many requests" in clean_lower or "rate-limit" in clean_lower:
         return ErrorDetail(
             code="RATE_LIMITED",
-            message="Too many requests sent to the media host.",
-            hint="Wait a few moments before trying again or authenticate with cookies."
+            message="The video platform is temporarily rate-limiting requests.",
+            hint="Too many requests were sent in a short window. Wait 2–3 minutes before trying again or authenticate with cookies.",
+            source="network"
         )
     if "is a live stream" in clean_lower or "live event will begin" in clean_lower or "premieres in" in clean_lower or "live event has ended" in clean_lower:
         return ErrorDetail(
             code="LIVE_STREAM",
-            message="This media is a live stream or upcoming premiere and cannot be processed.",
-            hint="Wait until the live broadcast concludes and the VOD is published."
+            message="This media is currently streaming live or is an upcoming premiere.",
+            hint="Live broadcasts cannot be downloaded while streaming. Wait until the live event concludes and the full recording is published.",
+            source="platform"
         )
     if "ffmpeg is not installed" in clean_lower or "ffprobe not found" in clean_lower or "ffmpeg not found" in clean_lower or "avprobe not found" in clean_lower or ("ffprobe" in clean_lower and "not found" in clean_lower) or ("ffmpeg" in clean_lower and "not found" in clean_lower):
         return ErrorDetail(
             code="FFMPEG_MISSING",
-            message="FFmpeg binary was not found or failed execution.",
-            hint="Install FFmpeg into PATH or select lower quality (720p/480p) pre-muxed stream."
+            message="FFmpeg media processing software was not found on your computer.",
+            hint="Click the '1-Click Install FFmpeg' banner at the top of the app to install it automatically.",
+            source="system"
         )
     if "unable to extract" in clean_lower or "http error 403" in clean_lower or "signature extraction failed" in clean_lower or "n challenge solving failed" in clean_lower:
         return ErrorDetail(
             code="ENGINE_OUTDATED",
-            message="Site layout changed or stream token extraction failed.",
-            hint="Update the download engine using POST /api/engine/update."
+            message="The video platform recently updated its website layout or stream signature.",
+            hint="The download engine needs to be refreshed. Update the download engine using POST /api/engine/update.",
+            source="app"
         )
     if "connection timed out" in clean_lower or "timed out" in clean_lower or "timeout" in clean_lower or "transporterror" in clean_lower or "connection refused" in clean_lower:
         return ErrorDetail(
             code="CONNECTION_TIMEOUT",
-            message="Connection to media host timed out or was refused.",
-            hint="If this platform (e.g. TikTok) is restricted in your area, you may need a VPN."
+            message="Connection to the media host timed out or was refused.",
+            hint="Please check your internet connection. If this platform (e.g. TikTok) is restricted in your region, you may need a VPN.",
+            source="network"
         )
     if "untrusted mount point" in clean_lower or "winerror 448" in clean_lower:
         return ErrorDetail(
             code="UNTRUSTED_MOUNT_POINT",
             message="Windows security policy blocked path traversal due to an untrusted mount point in system PATH.",
-            hint="Reset NVM with 'nvm use <version>' as Administrator or check for broken junction links in your system PATH."
+            hint="Reset NVM with 'nvm use <version>' as Administrator or check for broken junction links in your system PATH.",
+            source="system"
         )
 
     return ErrorDetail(
         code="UNKNOWN",
-        message=clean or "An unexpected extraction error occurred.",
-        hint="Check the URL and your local network connection."
+        message=clean or "Could not fetch media information from this link.",
+        hint="Please verify that the link works in your browser and check your internet connection.",
+        source="platform"
     )
 
 def clean_error_message(err_msg: str) -> str:
@@ -415,8 +431,12 @@ def extract_media_info(
         entries = info.get('entries', []) or []
         items: List[VideoItem] = []
         total_playlist_bytes = 0
+        MAX_PLAYLIST_ITEMS = 500
 
         for entry in entries:
+            if len(items) >= MAX_PLAYLIST_ITEMS:
+                logger.warning(f"Playlist entry count capped at {MAX_PLAYLIST_ITEMS} items to protect system resources.")
+                break
             if not entry:
                 continue
             entry_id = str(entry.get('id', ''))

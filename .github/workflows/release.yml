@@ -79,28 +79,39 @@ jobs:
             dist/OmniDownloader-Setup.exe
             dist/OmniDownloader.exe
           body: |
-            ## 🚀 OmniDownloader ${{ github.ref_name }}
+            # ⚡ OmniDownloader ${{ github.ref_name }}
 
-            ### 📦 Downloads for Windows:
-            - **`OmniDownloader-Setup.exe` (Recommended):** Standard Windows 1-click Installer.
-              - Installs cleanly to your user profile (no Administrator/UAC prompt required).
-              - Registers in the **Windows Start Menu** and **Windows Search bar** (press `Win` + type `"Omni"`).
-              - Creates a desktop shortcut with the official app icon.
-              - Fully registered in **Windows Settings > Installed apps** with clean uninstallation.
-            - **`OmniDownloader.exe` (Portable):** Standalone single-file executable. Runs directly without installation.
+            A fast, local-first universal media and playlist downloader for Windows (YouTube, Instagram, TikTok, X/Twitter, Bilibili, and 1,000+ sites) at full quality with real-time SSE progress.
+
+            ---
+
+            ### 📦 Windows Downloads
+            | File | Type | Description |
+            | :--- | :--- | :--- |
+            | **`OmniDownloader-Setup.exe`** | **Installer (Recommended)** | 1-Click setup wizard. Adds Start Menu & Windows Search integration (`Win` + `"Omni"`), desktop shortcut, and clean uninstall via Windows Settings. |
+            | **`OmniDownloader.exe`** | **Portable Standalone** | Single binary executable. No installation required; run directly from any folder or USB. |
+
+            ---
+
+            ### ✨ Key Highlights:
+            - 🛡️ **Production Security Hardened**: Hardened against command injection, token exfiltration, and path traversal with strict validation.
+            - 📑 **Smart Playlist & Batch Engine**: Detects and extracts playlists with item selection checkboxes and safe ceiling caps.
+            - 🍪 **Bot Challenge Bypass**: Integrated cookie manager and browser session probing to bypass YouTube bot checks.
+            - ⚡ **Live Real-Time SSE Stream**: Millisecond-accurate download speed, downloaded size, and dynamic ETA tracking.
+            - 🚀 **Zero-Config Installer**: Installs cleanly to user profile without Administrator/UAC prompts.
+
+            ---
 
             ### 💡 Note on Windows SmartScreen:
-            If Windows displays *"Windows protected your PC"* when opening a newly released app, click **"More info"** and then **"Run anyway"** (standard for newly compiled open-source releases).
+            If Windows displays *"Windows protected your PC"* when opening a newly released app:
+            1. Click **"More info"**.
+            2. Click **"Run anyway"**.
+            *(Standard for newly compiled open-source releases without expensive enterprise certificates).*
 
-            ### ⚠️ Prerequisites for High-Res (1080p/4K) and MP3:
-            - High-definition streams require **FFmpeg**.
-            - Click the **1-Click Install FFmpeg** button directly inside the app, or run:
-              ```powershell
-              winget install Gyan.FFmpeg
-              ```
-
-            ### 🔍 Diagnostics & Troubleshooting:
-            If the application encounters any issue on your system, detailed logs are saved at:
-            `%LOCALAPPDATA%\OmniDownloader\launcher.log`
+            ### 🛠️ Prerequisites for 1080p, 4K & MP3:
+            Merging high-resolution streams requires **FFmpeg**. Use the 1-click installer inside app settings, or run:
+            ```powershell
+            winget install Gyan.FFmpeg
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

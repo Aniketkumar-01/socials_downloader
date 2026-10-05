@@ -15,9 +15,8 @@ assets_dir.mkdir(parents=True, exist_ok=True)
 ico_target = assets_dir / "app.ico"
 png_target = assets_dir / "app.png"
 
-# Potential artifact paths from IDE generation
+# Potential artifact paths from local assets
 artifact_candidates = [
-    Path(r"C:\Users\anike\.gemini\antigravity-ide\brain\c7909c13-4416-4d4b-a597-1631d8bd9c01\app_icon_1791192255990.jpg"),
     assets_dir / "raw_icon.png",
     assets_dir / "raw_icon.jpg",
 ]

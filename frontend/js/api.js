@@ -44,10 +44,12 @@ export async function fetchMediaInfo(url, cookieBrowser = null) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     let msg = errorData.message || errorData.detail || `Server error (${response.status})`;
-    if (errorData.hint) {
-      msg = `${msg} (Hint: ${errorData.hint})`;
-    }
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.code = errorData.code || "UNKNOWN";
+    err.hint = errorData.hint || "";
+    err.source = errorData.source || "platform";
+    err.raw = errorData;
+    throw err;
   }
 
   return await response.json();
@@ -73,10 +75,12 @@ export async function startDownload({ url, isPlaylist, selectedVideoIds, quality
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     let msg = errorData.message || errorData.detail || `Download request failed (${response.status})`;
-    if (errorData.hint) {
-      msg = `${msg} (Hint: ${errorData.hint})`;
-    }
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.code = errorData.code || "UNKNOWN";
+    err.hint = errorData.hint || "";
+    err.source = errorData.source || "platform";
+    err.raw = errorData;
+    throw err;
   }
 
   return await response.json();

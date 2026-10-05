@@ -19,11 +19,17 @@ if not exist ".git" (
     git init -b main
 )
 
-echo [3/5] Staging files (.gitignore protects cookies.txt, venv, and build artifacts)...
-git add .
+echo [3/5] Cleaning obsolete files and staging (.gitignore protects sensitive data)...
+git rm -rf --cached tasks DESIGN.md PRODUCT.md desktop.py 2>nul
+if exist "tasks" rd /s /q "tasks" 2>nul
+if exist "DESIGN.md" del /f /q "DESIGN.md" 2>nul
+if exist "PRODUCT.md" del /f /q "PRODUCT.md" 2>nul
+if exist "desktop.py" del /f /q "desktop.py" 2>nul
+
+git add -A
 
 echo [4/5] Creating commit...
-git commit -m "feat: standalone native desktop app mode, YouTube bot check bypass, command permission modal, and venv auto-switch"
+git commit -m "feat(release): v1.2.3 - production security hardening, universal media engine, and clean packaging"
 
 echo [5/5] Setting remote and pushing to GitHub...
 git remote remove origin 2>nul
@@ -35,15 +41,15 @@ echo Pushing code to main branch...
 git push -u origin main
 
 echo.
-set /p CREATE_RELEASE="Do you want to create and push a v1.1.0 release tag to build OmniDownloader.exe on GitHub? (y/n): "
+set /p CREATE_RELEASE="Do you want to create and push a v1.2.3 release tag to compile Windows binaries on GitHub? (y/n): "
 if /i "%CREATE_RELEASE%"=="y" (
     echo.
-    echo Tagging release v1.1.0...
-    git tag -a v1.1.0 -m "OmniDownloader v1.1.0 Release - Native App Shell & Bot Bypass" 2>nul
-    echo Pushing tag to GitHub to trigger automated .exe build...
-    git push origin v1.1.0 --force
+    echo Tagging release v1.2.3...
+    git tag -a v1.2.3 -m "OmniDownloader v1.2.3 - Security Hardening, Clean Packaging & Universal Media Engine" -f 2>nul
+    echo Pushing tag to GitHub to trigger automated build...
+    git push origin v1.2.3 --force
     echo.
-    echo GitHub Actions is now compiling OmniDownloader.exe!
+    echo GitHub Actions is now compiling OmniDownloader-Setup.exe and OmniDownloader.exe!
     echo Visit: https://github.com/Aniketkumar-01/socials_downloader/actions
 )
 

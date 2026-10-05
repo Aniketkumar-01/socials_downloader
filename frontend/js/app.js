@@ -26,7 +26,17 @@ const cookieSelect = document.getElementById("cookie-select");
 const toastContainer = document.getElementById("toast-container");
 
 const errorAlert = document.getElementById("error-alert");
+const errorSourceBadge = document.getElementById("error-source-badge");
+const errorSourceIcon = document.getElementById("error-source-icon");
+const errorSourceText = document.getElementById("error-source-text");
+const errorCodeChip = document.getElementById("error-code-chip");
+const errorTitle = document.getElementById("error-title");
 const errorMessage = document.getElementById("error-message");
+const errorHintBox = document.getElementById("error-hint-box");
+const errorHintText = document.getElementById("error-hint-text");
+const errorTechDetails = document.getElementById("error-tech-details");
+const errorRawText = document.getElementById("error-raw-text");
+const btnDismissError = document.getElementById("btn-dismiss-error");
 
 const prerequisitesBanner = document.getElementById("prerequisites-banner");
 const btnInstallFfmpeg = document.getElementById("btn-install-ffmpeg");
@@ -82,20 +92,169 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(i >= 2 ? 1 : 0)} ${units[i]}`;
 }
 
-// Helper: Show Error Alert
-function showError(msg) {
-  errorMessage.textContent = msg;
-  errorAlert.style.display = "flex";
+// Convert technical errors to clear, categorized layman explanations
+function formatLaymanError(errOrMsg) {
+  let rawMsg = typeof errOrMsg === "string" ? errOrMsg : ((errOrMsg && errOrMsg.message) || String(errOrMsg));
+  let code = (errOrMsg && errOrMsg.code) || "UNKNOWN";
+  let hint = (errOrMsg && errOrMsg.hint) || "";
+  let source = (errOrMsg && errOrMsg.source) || "platform";
+
+  // Clean raw ANSI codes or URL dumps if present
+  let clean = (rawMsg || "").replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+  const lower = clean.toLowerCase();
+
+  let title = "Unable to Process Video";
+  let laymanMessage = clean;
+
+  // Platform/YouTube Specific Checks
+  if (code === "BOT_CHECK" || lower.includes("not a bot") || lower.includes("bot verification") || lower.includes("sign in to confirm")) {
+    source = "platform";
+    code = "BOT_CHECK";
+    title = "YouTube Human Verification Required";
+    laymanMessage = "YouTube is asking to confirm you are a real person and not an automated program.";
+    if (!hint) hint = "Select your signed-in browser (Microsoft Edge or Google Chrome) below to verify locally on your computer with your existing session.";
+  } else if (code === "PRIVATE_VIDEO" || lower.includes("private video") || lower.includes("this video is private")) {
+    source = "platform";
+    code = "PRIVATE_VIDEO";
+    title = "Private Video on YouTube";
+    laymanMessage = "The creator has set this video to private. It is only accessible to invited viewers.";
+    if (!hint) hint = "If you have permission to view this video, select your signed-in browser from the Cookies dropdown.";
+  } else if (code === "AGE_RESTRICTED" || lower.includes("age-restricted") || lower.includes("confirm your age") || lower.includes("sign in to view")) {
+    source = "platform";
+    code = "AGE_RESTRICTED";
+    title = "Age-Restricted Video";
+    laymanMessage = "YouTube requires a signed-in account over 18 to view this content.";
+    if (!hint) hint = "Select your logged-in browser (Edge or Chrome) from the Cookies dropdown to authenticate locally.";
+  } else if (code === "GEO_BLOCKED" || lower.includes("available in your country") || lower.includes("geo-restricted") || lower.includes("blocked it in your country")) {
+    source = "platform";
+    code = "GEO_BLOCKED";
+    title = "Regional Restriction (Geo-Blocked)";
+    laymanMessage = "The content creator has restricted this video in your geographical location.";
+    if (!hint) hint = "Connect through a VPN server in a country where this video is permitted and try again.";
+  } else if (code === "MEMBERS_ONLY" || lower.includes("members-only") || lower.includes("members only") || lower.includes("join this channel")) {
+    source = "platform";
+    code = "MEMBERS_ONLY";
+    title = "Channel Members Only";
+    laymanMessage = "This video is exclusively available to paid members of the YouTube channel.";
+    if (!hint) hint = "If you have an active channel membership, select your signed-in browser from the Cookies dropdown.";
+  } else if (code === "LIVE_STREAM" || lower.includes("is a live stream") || lower.includes("live event will begin") || lower.includes("premieres in")) {
+    source = "platform";
+    code = "LIVE_STREAM";
+    title = "Live Stream or Upcoming Premiere";
+    laymanMessage = "This video is currently streaming live or has not premiered yet.";
+    if (!hint) hint = "Live broadcasts cannot be downloaded while streaming. Please wait until the live stream concludes and the full video is published.";
+  } 
+  // Internet / Network Specific Checks
+  else if (code === "RATE_LIMITED" || lower.includes("http error 429") || lower.includes("too many requests") || lower.includes("rate-limit")) {
+    source = "network";
+    code = "RATE_LIMITED";
+    title = "Platform Temporarily Busy (Rate Limited)";
+    laymanMessage = "The video platform is temporarily limiting requests from your IP address.";
+    if (!hint) hint = "Wait 2 to 3 minutes before trying again, or select your signed-in browser to authenticate.";
+  } else if (code === "CONNECTION_TIMEOUT" || lower.includes("timed out") || lower.includes("connection refused") || lower.includes("transporterror")) {
+    source = "network";
+    code = "CONNECTION_TIMEOUT";
+    title = "Internet Connection Problem";
+    laymanMessage = "Connection to the video host timed out or was refused.";
+    if (!hint) hint = "Check your internet connection. If this platform (e.g. TikTok) is restricted in your region, you may need a VPN.";
+  }
+  // Local PC / System Specific Checks
+  else if (code === "FFMPEG_MISSING" || (lower.includes("ffmpeg") && lower.includes("not found")) || lower.includes("ffprobe")) {
+    source = "system";
+    code = "FFMPEG_MISSING";
+    title = "Video Processing Software Missing (FFmpeg)";
+    laymanMessage = "FFmpeg is required on your computer to merge high-resolution video streams (1080p, 4K) and convert MP3s.";
+    if (!hint) hint = "Click the '1-Click Install FFmpeg' button at the top banner to install it automatically on your PC.";
+  } else if (code === "UNTRUSTED_MOUNT_POINT" || lower.includes("untrusted mount point") || lower.includes("winerror 448")) {
+    source = "system";
+    code = "UNTRUSTED_MOUNT_POINT";
+    title = "Windows Path Junction Issue";
+    laymanMessage = "Windows security blocked a path traversal due to an untrusted mount point (commonly from Node.js / NVM).";
+    if (!hint) hint = "Reset NVM with 'nvm use <version>' as Administrator or check for broken junction links in your system PATH.";
+  }
+  // OmniDownloader Application / Engine Checks
+  else if (code === "ENGINE_OUTDATED" || lower.includes("unable to extract") || lower.includes("signature extraction failed") || lower.includes("n challenge solving failed")) {
+    source = "app";
+    code = "ENGINE_OUTDATED";
+    title = "Video Layout Changed (Engine Update Available)";
+    laymanMessage = "The video platform recently updated its website structure or stream encryption.";
+    if (!hint) hint = "The download engine can be refreshed automatically. Check for engine updates in settings.";
+  }
+
+  // Source display labels and icons
+  const sourceConfig = {
+    platform: { icon: "📺", text: "Platform (YouTube / Host) Issue" },
+    network: { icon: "🌐", text: "Internet & Connection Issue" },
+    system: { icon: "💻", text: "Your Computer (Setup / PC) Issue" },
+    app: { icon: "⚙️", text: "OmniDownloader Engine Notice" }
+  };
+
+  const sc = sourceConfig[source] || sourceConfig.platform;
+
+  return {
+    source,
+    sourceIcon: sc.icon,
+    sourceText: sc.text,
+    code,
+    title,
+    message: laymanMessage,
+    hint,
+    raw: clean
+  };
+}
+
+// Helper: Show Categorized Layman Error Alert
+function showError(errOrMsg) {
+  const info = formatLaymanError(errOrMsg);
+
+  if (errorSourceBadge) {
+    errorSourceBadge.className = `error-source-badge source-${info.source}`;
+    if (errorSourceIcon) errorSourceIcon.textContent = info.sourceIcon;
+    if (errorSourceText) errorSourceText.textContent = info.sourceText;
+  }
+
+  if (errorCodeChip) {
+    if (info.code && info.code !== "UNKNOWN") {
+      errorCodeChip.textContent = info.code;
+      errorCodeChip.style.display = "inline-block";
+    } else {
+      errorCodeChip.style.display = "none";
+    }
+  }
+
+  if (errorTitle) errorTitle.textContent = info.title;
+  if (errorMessage) errorMessage.textContent = info.message;
+
+  if (errorHintBox && errorHintText) {
+    if (info.hint) {
+      errorHintText.textContent = info.hint;
+      errorHintBox.style.display = "flex";
+    } else {
+      errorHintBox.style.display = "none";
+    }
+  }
 
   const botHelpers = document.getElementById("bot-auth-helpers");
   if (botHelpers) {
-    const isBot = (msg || "").toLowerCase().includes("bot") || 
-                  (msg || "").toLowerCase().includes("sign in to confirm") || 
-                  (msg || "").toLowerCase().includes("verification") ||
-                  (msg || "").toLowerCase().includes("cookies");
+    const isBot = info.code === "BOT_CHECK" || 
+                  info.code === "AGE_RESTRICTED" || 
+                  info.code === "PRIVATE_VIDEO" || 
+                  info.code === "MEMBERS_ONLY" || 
+                  info.message.toLowerCase().includes("bot") || 
+                  info.message.toLowerCase().includes("verification");
     botHelpers.style.display = isBot ? "block" : "none";
   }
 
+  if (errorTechDetails && errorRawText) {
+    if (info.raw && info.raw !== info.message) {
+      errorRawText.textContent = info.raw;
+      errorTechDetails.style.display = "block";
+    } else {
+      errorTechDetails.style.display = "none";
+    }
+  }
+
+  errorAlert.style.display = "flex";
   errorAlert.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -117,9 +276,15 @@ export function showToast(msg, type = "info") {
 // Helper: Clear Error Alert
 function clearError() {
   errorAlert.style.display = "none";
-  errorMessage.textContent = "";
+  if (errorMessage) errorMessage.textContent = "";
+  if (errorHintBox) errorHintBox.style.display = "none";
+  if (errorTechDetails) errorTechDetails.style.display = "none";
   const botHelpers = document.getElementById("bot-auth-helpers");
   if (botHelpers) botHelpers.style.display = "none";
+}
+
+if (btnDismissError) {
+  btnDismissError.addEventListener("click", clearError);
 }
 
 // Quick Local Browser Auth Button Handlers
@@ -285,7 +450,7 @@ urlForm.addEventListener("submit", async (e) => {
     currentMedia = info;
     renderMediaInfo(info);
   } catch (err) {
-    showError(err.message || "Failed to load media details. Please verify the URL.");
+    showError(err);
   } finally {
     setLoading(false);
   }
@@ -508,7 +673,7 @@ async function executeDownload() {
     currentTaskId = res.task_id;
     showProgressView(currentTaskId);
   } catch (err) {
-    showError(err.message || "Failed to start download.");
+    showError(err);
     setDownloadButtonState("ready");
   }
 }
@@ -563,11 +728,15 @@ function showProgressView(taskId) {
   progressEta.textContent = "ETA: --";
   progressItemTitle.textContent = "Initializing download...";
 
+  // Lock progress size denominator to expected quality format
+  const selectedQuality = qualitySelect ? qualitySelect.value : "best";
+  const lockedTotalFormatted = (currentMedia && currentMedia.quality_sizes_formatted && currentMedia.quality_sizes_formatted[selectedQuality])
+    || (currentMedia && currentMedia.filesize_formatted)
+    || null;
+
   // Set initial estimated size
   if (progressSize) {
-    const q = qualitySelect ? qualitySelect.value : "best";
-    const est = (currentMedia && currentMedia.quality_sizes_formatted && currentMedia.quality_sizes_formatted[q]) || (currentMedia && currentMedia.filesize_formatted);
-    progressSize.textContent = est ? `Size: ${est}` : "Size: Calculating...";
+    progressSize.textContent = lockedTotalFormatted ? `Size: ${lockedTotalFormatted}` : "Size: Calculating...";
   }
 
   // Display and reset Cancel button
@@ -597,12 +766,16 @@ function showProgressView(taskId) {
       progressSpeed.textContent = `Speed: ${data.speed_str || "--"}`;
       progressEta.textContent = `ETA: ${data.eta_str || "--"}`;
 
-      // Update real-time downloaded vs total size
+      // Update real-time downloaded vs locked total size
       if (progressSize) {
-        if (data.downloaded_bytes && data.total_bytes && data.total_bytes > 0) {
-          progressSize.textContent = `Size: ${formatBytes(data.downloaded_bytes)} / ${formatBytes(data.total_bytes)}`;
-        } else if (data.downloaded_bytes && data.downloaded_bytes > 0) {
-          progressSize.textContent = `Size: ${formatBytes(data.downloaded_bytes)}`;
+        const dlStr = (data.downloaded_bytes && data.downloaded_bytes > 0) ? formatBytes(data.downloaded_bytes) : null;
+        const totStr = lockedTotalFormatted || ((data.total_bytes && data.total_bytes > 0) ? formatBytes(data.total_bytes) : null);
+        if (dlStr && totStr) {
+          progressSize.textContent = `Size: ${dlStr} / ${totStr}`;
+        } else if (dlStr) {
+          progressSize.textContent = `Size: ${dlStr}`;
+        } else if (totStr) {
+          progressSize.textContent = `Size: ${totStr}`;
         }
       }
 
@@ -629,8 +802,11 @@ function showProgressView(taskId) {
       progressEta.textContent = "ETA: Done";
       progressItemTitle.textContent = "Download completed successfully!";
 
-      if (progressSize && data.total_bytes) {
-        progressSize.textContent = `Total: ${formatBytes(data.total_bytes)}`;
+      if (progressSize) {
+        const finalSize = (data.total_bytes && data.total_bytes > 0) ? formatBytes(data.total_bytes) : lockedTotalFormatted;
+        if (finalSize) {
+          progressSize.textContent = `Total: ${finalSize}`;
+        }
       }
 
       // Reveal post-download actions
@@ -652,12 +828,14 @@ function showProgressView(taskId) {
       setDownloadButtonState("ready");
       showToast("Download was cancelled.", "info");
     },
-    onError: (errMsg) => {
+    onError: (err) => {
       if (btnCancelDownload) {
         btnCancelDownload.style.display = "none";
       }
-      showError(`Download interrupted: ${errMsg}`);
+      showError(err);
       progressItemTitle.textContent = "Download failed.";
+      progressBarFill.style.background = "#ef4444";
+      progressPercentage.textContent = "Failed";
       setDownloadButtonState("ready");
     },
   });

@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="OmniDownloader Web App",
     description="Hardened universal video and playlist downloader with real-time SSE progress",
-    version="1.2.2",
+    version="1.2.3",
     lifespan=lifespan
 )
 
@@ -105,7 +105,8 @@ async def security_and_auth_middleware(request: Request, call_next):
                 content={
                     "code": "FORBIDDEN",
                     "message": f"Cross-origin request from '{origin}' rejected.",
-                    "hint": "API requests must originate from the local application."
+                    "hint": "API requests must originate from the local application.",
+                    "source": "app"
                 }
             )
 
@@ -121,7 +122,8 @@ async def security_and_auth_middleware(request: Request, call_next):
                 content={
                     "code": "UNAUTHORIZED",
                     "message": "Missing or invalid authentication token.",
-                    "hint": "Provide valid token in X-Auth-Token header or ?token= query parameter."
+                    "hint": "Provide valid token in X-Auth-Token header or ?token= query parameter.",
+                    "source": "app"
                 }
             )
 
@@ -135,6 +137,7 @@ async def security_and_auth_middleware(request: Request, call_next):
 async def http_exception_handler(request: Request, exc: HTTPException):
     code = "HTTP_ERROR"
     hint = "Verify your request parameters and try again."
+    source = "app"
     if exc.status_code == 401:
         code = "UNAUTHORIZED"
         hint = "Provide valid token in X-Auth-Token header or ?token= query parameter."
@@ -153,7 +156,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": code, "message": str(exc.detail), "hint": hint}
+        content={"code": code, "message": str(exc.detail), "hint": hint, "source": source}
     )
 
 @app.exception_handler(RequestValidationError)
@@ -166,7 +169,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={
             "code": "VALIDATION_ERROR",
             "message": f"{loc}: {msg}" if loc else msg,
-            "hint": "Check field types, values, and allowable choices."
+            "hint": "Check field types, values, and allowable choices.",
+            "source": "app"
         }
     )
 
@@ -174,7 +178,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def media_extraction_handler(request: Request, exc: MediaExtractionError):
     return JSONResponse(
         status_code=400,
-        content={"code": exc.detail.code, "message": exc.detail.message, "hint": exc.detail.hint}
+        content={
+            "code": exc.detail.code,
+            "message": exc.detail.message,
+            "hint": exc.detail.hint,
+            "source": exc.detail.source
+        }
     )
 
 @app.exception_handler(Exception)
@@ -183,7 +192,12 @@ async def general_exception_handler(request: Request, exc: Exception):
     detail = map_ytdlp_error(exc)
     return JSONResponse(
         status_code=500,
-        content={"code": detail.code, "message": detail.message, "hint": detail.hint}
+        content={
+            "code": detail.code,
+            "message": detail.message,
+            "hint": detail.hint,
+            "source": detail.source
+        }
     )
 
 # --------------------------------------------------------------------------
@@ -324,9 +338,9 @@ async def open_downloads_folder(task_id: Optional[str] = None):
         if os.name == 'nt':
             if target_path.is_file():
                 # Windows Explorer syntax: explorer.exe /select,"C:\path\file.mp4"
-                subprocess.Popen(f'explorer.exe /select,"{norm_path}"', creationflags=NO_WINDOW_FLAG)
+                subprocess.Popen(["explorer.exe", f"/select,{norm_path}"], creationflags=NO_WINDOW_FLAG)
             else:
-                subprocess.Popen(f'explorer.exe "{norm_path}"', creationflags=NO_WINDOW_FLAG)
+                subprocess.Popen(["explorer.exe", norm_path], creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
             if target_path.is_file():
                 subprocess.Popen(["open", "-R", norm_path])
@@ -337,9 +351,11 @@ async def open_downloads_folder(task_id: Optional[str] = None):
             subprocess.Popen(["xdg-open", folder])
 
         return {"status": "success", "opened_path": norm_path}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error opening folder: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to open downloads folder.")
 
 @app.post("/api/open-file")
 async def open_downloaded_file(task_id: str):
@@ -381,20 +397,27 @@ async def open_downloaded_file(task_id: str):
             try:
                 os.startfile(norm_path)
             except Exception as e:
-                logger.warning(f"os.startfile failed ({e}), attempting shell start: {norm_path}")
-                subprocess.Popen(f'start "" "{norm_path}"', shell=True, creationflags=NO_WINDOW_FLAG)
+                logger.warning(f"os.startfile failed ({e}), attempting fallback: {norm_path}")
+                subprocess.Popen(["explorer.exe", norm_path], creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
             subprocess.Popen(["open", norm_path])
         else:
             subprocess.Popen(["xdg-open", norm_path])
         return {"status": "success", "file": norm_path}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error launching file {norm_path}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to launch downloaded media file.")
 
 @app.get("/api/token")
-async def get_session_token():
+async def get_session_token(request: Request):
     """Allows local application clients to retrieve or synchronize active session token."""
+    # Defend against cross-site token exfiltration via Sec-Fetch-Site
+    fetch_site = request.headers.get("sec-fetch-site", "").strip().lower()
+    if fetch_site == "cross-site":
+        logger.warning(f"Rejected cross-site request for session token from {request.client.host if request.client else 'unknown'}")
+        raise HTTPException(status_code=403, detail="Cross-site access denied.")
     return {"token": API_TOKEN}
 
 @app.get("/api/download-dir")
@@ -413,9 +436,11 @@ async def update_download_directory(request: SetDownloadDirRequest):
         new_path = Path(raw).expanduser().resolve()
         saved = set_download_dir(new_path)
         return {"status": "success", "download_dir": str(saved)}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to set download directory '{request.download_dir}': {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid directory path: {e}")
+        raise HTTPException(status_code=400, detail="Invalid directory path provided.")
 
 @app.post("/api/choose-folder")
 async def trigger_folder_picker():

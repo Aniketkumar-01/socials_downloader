@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OmniDownloader - Universal Video &amp; Playlist Downloader</title>
   <meta name="description" content="Fast, local-first media downloader for YouTube, Instagram, TikTok, X (Twitter), Bilibili, and more with real-time SSE progress.">
+  <meta property="og:title" content="OmniDownloader - Universal Video &amp; Playlist Downloader">
+  <meta property="og:description" content="Fast, local-first media downloader for YouTube, Instagram, TikTok, X (Twitter), Bilibili, and more with real-time SSE progress.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OmniDownloader - Universal Video &amp; Playlist Downloader">
+  <meta name="twitter:description" content="Fast, local-first media downloader for YouTube, Instagram, TikTok, X (Twitter), Bilibili, and more with real-time SSE progress.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300d2ff' stroke-width='2'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,30 +46,62 @@
     </header>
 
     <main class="console-hub">
-      <!-- Error Notification Banner -->
+      <!-- Categorized Layman Error Alert Card -->
       <div id="error-alert" class="alert-banner" role="alert" style="display: none;">
-        <div class="alert-icon" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
+        <div class="alert-header-row">
+          <div class="alert-source-cluster">
+            <span id="error-source-badge" class="error-source-badge source-platform">
+              <span class="source-icon" id="error-source-icon">📺</span>
+              <span class="source-text" id="error-source-text">Platform / YouTube Issue</span>
+            </span>
+            <span class="error-code-chip" id="error-code-chip" style="display: none;">BOT_CHECK</span>
+          </div>
+          <button type="button" id="btn-dismiss-error" class="btn-alert-dismiss" title="Dismiss notice" aria-label="Dismiss">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
-        <div class="alert-body">
-          <span id="error-message">Error message</span>
-          <div id="bot-auth-helpers" class="bot-auth-helpers" style="display: none; margin-top: 10px;">
-            <div class="bot-helper-label">Resolve instantly on your PC using your local browser session:</div>
+
+        <div class="alert-main-content">
+          <div class="alert-explanation">
+            <h4 id="error-title" class="error-title">Unable to process video</h4>
+            <p id="error-message" class="error-message">Error message</p>
+          </div>
+
+          <div id="error-hint-box" class="error-hint-box" style="display: none;">
+            <div class="hint-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <span>How to resolve:</span>
+            </div>
+            <p id="error-hint-text" class="hint-text"></p>
+          </div>
+
+          <!-- Quick Action Buttons for Platform Verification / Cookies -->
+          <div id="bot-auth-helpers" class="bot-auth-helpers" style="display: none;">
+            <div class="bot-helper-label">Authenticate locally on your PC (No passwords required):</div>
             <div class="bot-helper-buttons">
               <button type="button" class="btn-quick-browser" data-browser="edge">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Authenticate with Microsoft Edge
+                Use Microsoft Edge Session
               </button>
               <button type="button" class="btn-quick-browser" data-browser="chrome">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Authenticate with Google Chrome
+                Use Google Chrome Session
               </button>
             </div>
           </div>
+
+          <!-- Collapsible technical details for diagnostics/logging -->
+          <details id="error-tech-details" class="error-tech-details" style="display: none;">
+            <summary class="tech-details-summary">Show technical details (for debugging)</summary>
+            <pre id="error-raw-text" class="tech-details-content"></pre>
+          </details>
         </div>
       </div>
 
@@ -180,6 +218,38 @@
                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
               </svg>
               <span>VPN needed for restricted platforms</span>
+            </div>
+          </div>
+
+          <!-- Authentication & 100% Local PC Privacy Strip -->
+          <div class="deck-sub-row">
+            <div class="cookie-auth-dock">
+              <label for="cookie-select" class="cookie-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"></path>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <circle cx="16" cy="15.5" r="1.5"></circle>
+                  <circle cx="12" cy="12" r="1.5"></circle>
+                  <circle cx="11" cy="17" r="1.5"></circle>
+                  <circle cx="7" cy="13" r="1.5"></circle>
+                </svg>
+                <span>Cookies / Auth:</span>
+              </label>
+              <select id="cookie-select" class="cookie-select">
+                <option value="none" selected>No Cookies (Public media)</option>
+                <option value="edge">Microsoft Edge (Local Session)</option>
+                <option value="chrome">Google Chrome (Local Session)</option>
+                <option value="firefox">Firefox (Local Session)</option>
+                <option value="brave">Brave (Local Session)</option>
+              </select>
+            </div>
+
+            <div class="local-privacy-badge" title="OmniDownloader executes 100% locally on your computer. Your cookies, sessions, and downloads never leave your PC.">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>100% Local PC Processing • Zero Cloud Telemetry</span>
             </div>
           </div>
         </form>

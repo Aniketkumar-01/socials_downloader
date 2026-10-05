@@ -271,50 +271,61 @@ def test_error_mapping_categories():
     err = map_ytdlp_error("Sign in to confirm you’re not a bot. Use --cookies-from-browser")
     assert err.code == "BOT_CHECK"
     assert "bot verification" in err.message.lower()
+    assert err.source == "platform"
 
     # Private video
     err = map_ytdlp_error("ERROR: [youtube] 12345: This video is private")
     assert err.code == "PRIVATE_VIDEO"
+    assert err.source == "platform"
 
     # Age restricted
     err = map_ytdlp_error("Sign in to confirm your age. This video may be inappropriate")
     assert err.code == "AGE_RESTRICTED"
+    assert err.source == "platform"
 
     # Geo blocked
     err = map_ytdlp_error("The uploader has not made this video available in your country")
     assert err.code == "GEO_BLOCKED"
+    assert err.source == "platform"
 
     # Members only
     err = map_ytdlp_error("Join this channel to get access to members-only content")
     assert err.code == "MEMBERS_ONLY"
+    assert err.source == "platform"
 
     # Rate limited
     err = map_ytdlp_error("HTTP Error 429: Too Many Requests")
     assert err.code == "RATE_LIMITED"
+    assert err.source == "network"
 
     # Live stream
     err = map_ytdlp_error("This live event will begin in 2 hours")
     assert err.code == "LIVE_STREAM"
+    assert err.source == "platform"
 
     # FFmpeg missing
     err = map_ytdlp_error("ffprobe or avprobe not found. Please install one")
     assert err.code == "FFMPEG_MISSING"
+    assert err.source == "system"
 
     # Engine outdated
     err = map_ytdlp_error("Unable to extract video data: signature extraction failed")
     assert err.code == "ENGINE_OUTDATED"
     assert "update" in err.hint.lower()
+    assert err.source == "app"
 
     # Connection timeout (e.g. regional ban)
     err = map_ytdlp_error("Connection to www.tiktok.com timed out. (connect timeout=20.0)")
     assert err.code == "CONNECTION_TIMEOUT"
     assert "vpn" in err.hint.lower()
+    assert err.source == "network"
 
     # Untrusted mount point (WinError 448)
-    err = map_ytdlp_error("[WinError 448] The path cannot be traversed because it contains an untrusted mount point: 'C:\\Users\\anike\\AppData\\Local\\Author Software\\nvm\\.nodejs'")
+    err = map_ytdlp_error(r"[WinError 448] The path cannot be traversed because it contains an untrusted mount point: 'C:\Users\Developer\AppData\Local\Author Software\nvm\.nodejs'")
     assert err.code == "UNTRUSTED_MOUNT_POINT"
     assert "untrusted mount point" in err.message.lower()
     assert "nvm" in err.hint.lower()
+    assert err.source == "system"
 
 
 def test_safe_realpath_handles_untrusted_mount_point():
@@ -350,6 +361,54 @@ def test_sanitize_system_path_filters_untrusted_mount():
                 assert fake_untrusted not in current_path
     finally:
         os.environ["PATH"] = orig_path
+
+
+# ---------------------------------------------------------------------------
+# 8. Token Protection, Length Limits, and Safe Fallbacks
+# ---------------------------------------------------------------------------
+
+def test_token_endpoint_blocks_cross_site():
+    """Verify that requests to /api/token with Sec-Fetch-Site: cross-site are rejected with 403."""
+    response = client.get(
+        "/api/token",
+        headers={"Sec-Fetch-Site": "cross-site"}
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == "FORBIDDEN"
+
+
+def test_token_endpoint_allows_same_origin():
+    """Verify that local/same-origin requests to /api/token succeed and return a valid token."""
+    response = client.get(
+        "/api/token",
+        headers={"Sec-Fetch-Site": "same-origin"}
+    )
+    assert response.status_code == 200
+    assert "token" in response.json()
+    assert response.json()["token"] == API_TOKEN
+
+
+def test_url_max_length_rejection():
+    """Verify that URLs exceeding 2048 characters are rejected with 422."""
+    oversized_url = "https://example.com/watch?v=" + ("a" * 2100)
+    response = client.post(
+        "/api/info",
+        json={"url": oversized_url},
+        headers={"X-Auth-Token": API_TOKEN}
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+def test_open_file_not_found():
+    """Opening a nonexistent task's file returns 404 with standard error structure."""
+    response = client.post(
+        "/api/open-file?task_id=nonexistent-task-id",
+        headers={"X-Auth-Token": API_TOKEN}
+    )
+    assert response.status_code == 404
+    assert response.json()["code"] == "NOT_FOUND"
+
 
 
 

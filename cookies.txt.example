@@ -1,0 +1,8 @@
+# Netscape HTTP Cookie File
+# This is an example format for OmniDownloader cookies.
+# Place your real exported cookies.txt into your user data directory (%LOCALAPPDATA%\OmniDownloader\cookies.txt)
+# or upload it directly through the OmniDownloader Settings panel.
+# DO NOT commit real session cookies to Git!
+
+# domain	flag	path	secure	expiration	name	value
+.youtube.com	TRUE	/	TRUE	2147483647	GPS	1

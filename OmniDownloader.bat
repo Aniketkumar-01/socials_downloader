@@ -18,6 +18,6 @@ if exist "venv\Scripts\python.exe" (
 
 :: 2. Launch Desktop Application
 echo Starting OmniDownloader Windows Application...
-"%PYTHON_EXE%" desktop.py
+"%PYTHON_EXE%" launcher.py
 
 exit /b 0
