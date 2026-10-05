@@ -1,10 +1,15 @@
 # OmniDownloader - PowerShell Git Push & Release Publisher
+param (
+    [string]$Version = "v1.2.4",
+    [string]$Message = "chore(release): v1.2.4 - production release"
+)
+
 $ErrorActionPreference = "Continue"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  Publishing OmniDownloader v1.2.3 Release to GitHub" -ForegroundColor Cyan
+Write-Host "  Publishing OmniDownloader $Version Release to GitHub" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -19,22 +24,27 @@ if (Test-Path "$ScriptDir\desktop.py") { Remove-Item -Force "$ScriptDir\desktop.
 # 2. Stage and Commit
 Write-Host "[2/4] Committing latest updates to main..." -ForegroundColor Yellow
 git add -A
-git commit -m "feat(release): v1.2.3 - production security hardening, universal media engine, and clean packaging"
+$status = git status --porcelain
+if ($status) {
+    git commit -m "$Message"
+} else {
+    Write-Host "  Working tree clean, no new changes to commit."
+}
 git push origin main
 
-# 3. Tag Release v1.2.3
+# 3. Tag Release
 Write-Host ""
-Write-Host "[3/4] Tagging release v1.2.3..." -ForegroundColor Yellow
-git tag -a v1.2.3 -m "OmniDownloader v1.2.3 - Security Hardening, Clean Packaging & Universal Media Engine" -f
+Write-Host "[3/4] Tagging release $Version..." -ForegroundColor Yellow
+git tag -a $Version -m "OmniDownloader $Version - Production Release" -f
 
 # 4. Push Tag
 Write-Host ""
-Write-Host "[4/4] Pushing tag v1.2.3 to GitHub..." -ForegroundColor Yellow
-git push origin v1.2.3 --force
+Write-Host "[4/4] Pushing tag $Version to GitHub..." -ForegroundColor Yellow
+git push origin $Version --force
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host "  SUCCESS! Release v1.2.3 is now building on GitHub Actions!" -ForegroundColor Green
+Write-Host "  SUCCESS! Release $Version is now building on GitHub Actions!" -ForegroundColor Green
 Write-Host "  " -ForegroundColor Green
 Write-Host "  Watch both OmniDownloader-Setup.exe and OmniDownloader.exe" -ForegroundColor Green
 Write-Host "  compile live at:" -ForegroundColor Green

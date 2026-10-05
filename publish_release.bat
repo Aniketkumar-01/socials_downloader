@@ -1,6 +1,6 @@
 @echo off
 echo ============================================================
-echo   Publishing OmniDownloader v1.2.3 Release to GitHub
+echo   Publishing OmniDownloader v1.2.4 Release to GitHub
 echo ============================================================
 echo.
 
@@ -15,20 +15,20 @@ if exist "desktop.py" del /f /q "desktop.py" 2>nul
 
 echo [2/4] Committing latest updates to main...
 git add -A
-git commit -m "feat(release): v1.2.3 - production security hardening, universal media engine, and clean packaging"
+git commit -m "feat(release): v1.2.4 - production security hardening, universal media engine, and clean packaging"
 git push origin main
 
 echo.
-echo [3/4] Tagging release v1.2.3...
-git tag -a v1.2.3 -m "OmniDownloader v1.2.3 - Security Hardening, Clean Packaging & Universal Media Engine" -f
+echo [3/4] Tagging release v1.2.4...
+git tag -a v1.2.4 -m "OmniDownloader v1.2.4 - Production Release" -f
 
 echo.
-echo [4/4] Pushing tag v1.2.3 to GitHub...
-git push origin v1.2.3 --force
+echo [4/4] Pushing tag v1.2.4 to GitHub...
+git push origin v1.2.4 --force
 
 echo.
 echo ============================================================
-echo   SUCCESS! Release v1.2.3 is now building on GitHub Actions!
+echo   SUCCESS! Release v1.2.4 is now building on GitHub Actions!
 echo   
 echo   Watch both OmniDownloader-Setup.exe and OmniDownloader.exe
 echo   compile live at:

@@ -29,7 +29,7 @@ if exist "desktop.py" del /f /q "desktop.py" 2>nul
 git add -A
 
 echo [4/5] Creating commit...
-git commit -m "feat(release): v1.2.3 - production security hardening, universal media engine, and clean packaging"
+git commit -m "feat(release): v1.2.4 - production security hardening, universal media engine, and clean packaging"
 
 echo [5/5] Setting remote and pushing to GitHub...
 git remote remove origin 2>nul
@@ -41,13 +41,13 @@ echo Pushing code to main branch...
 git push -u origin main
 
 echo.
-set /p CREATE_RELEASE="Do you want to create and push a v1.2.3 release tag to compile Windows binaries on GitHub? (y/n): "
+set /p CREATE_RELEASE="Do you want to create and push a v1.2.4 release tag to compile Windows binaries on GitHub? (y/n): "
 if /i "%CREATE_RELEASE%"=="y" (
     echo.
-    echo Tagging release v1.2.3...
-    git tag -a v1.2.3 -m "OmniDownloader v1.2.3 - Security Hardening, Clean Packaging & Universal Media Engine" -f 2>nul
+    echo Tagging release v1.2.4...
+    git tag -a v1.2.4 -m "OmniDownloader v1.2.4 - Production Release" -f 2>nul
     echo Pushing tag to GitHub to trigger automated build...
-    git push origin v1.2.3 --force
+    git push origin v1.2.4 --force
     echo.
     echo GitHub Actions is now compiling OmniDownloader-Setup.exe and OmniDownloader.exe!
     echo Visit: https://github.com/Aniketkumar-01/socials_downloader/actions
