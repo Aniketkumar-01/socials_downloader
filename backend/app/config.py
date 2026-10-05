@@ -9,12 +9,12 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     BASE_DIR = Path(sys._MEIPASS).resolve()
     FRONTEND_DIR = BASE_DIR / "frontend"
     BACKEND_DIR = BASE_DIR / "backend"
+    DOWNLOADS_DIR = Path.home() / "Downloads"
 else:
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     BACKEND_DIR = Path(__file__).resolve().parent.parent
     FRONTEND_DIR = BASE_DIR / "frontend"
-
-DOWNLOADS_DIR = BASE_DIR / "downloads"
+    DOWNLOADS_DIR = BASE_DIR / "downloads"
 
 # User Data Directory (platformdirs with robust fallback)
 try:

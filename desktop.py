@@ -158,21 +158,27 @@ def launch_desktop():
             "--no-first-run",
             "--no-default-browser-check"
         ]
-        # Start and block until user closes the desktop application window
-        proc = subprocess.Popen(cmd)
-        proc.wait()
-        logger.info("Desktop application window closed by user. Shutting down server.")
-    else:
-        # Fallback to default browser
-        import webbrowser
-        logger.info("Opening default browser...")
-        webbrowser.open(app_url)
-        # Keep process alive until user presses Ctrl+C
         try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Shutdown requested.")
+            proc = subprocess.Popen(cmd)
+            try:
+                proc.wait(timeout=3.0)
+                logger.info(f"Browser launcher process completed early (code {proc.returncode}). Session handed off to browser.")
+            except subprocess.TimeoutExpired:
+                proc.wait()
+                logger.info("Desktop application window closed by user. Shutting down server.")
+                return
+        except Exception as e:
+            logger.warning(f"Failed to launch standalone app window: {e}")
+
+    # Fallback / Persistent process keepalive
+    logger.info("Opening default browser...")
+    import webbrowser
+    webbrowser.open(app_url)
+    try:
+        while server_thread.is_alive():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Shutdown requested.")
 
 if __name__ == "__main__":
     launch_desktop()

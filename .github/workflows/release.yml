@@ -57,15 +57,20 @@ jobs:
 
             ### 📦 Quick Start (Windows)
             1. Download **`OmniDownloader.exe`** attached below.
-            2. Double-click **`OmniDownloader.exe`** to start.
-            3. The app will launch in your default web browser at `http://127.0.0.1:8000`.
-            4. Paste any video or playlist link (YouTube, Instagram, TikTok, etc.) to start downloading!
+            2. Double-click **`OmniDownloader.exe`** to start. (This is a standalone portable application — no installation wizard required!)
+            3. *Note on Windows SmartScreen:* If Windows displays *"Windows protected your PC"*, click **"More info"** and then **"Run anyway"** (standard for newly published open-source executables).
+            4. OmniDownloader will launch in its standalone native desktop application window.
+            5. Paste any video or playlist link (YouTube, Instagram, TikTok, etc.) and download at full speed!
 
             ### ⚠️ Prerequisites for High-Res (1080p/4K) and MP3:
-            - Stream combination requires **FFmpeg**.
+            - High-definition streams require **FFmpeg**.
             - Click the **1-Click Install FFmpeg** button directly inside the app, or run:
               ```powershell
               winget install Gyan.FFmpeg
               ```
+
+            ### 🔍 Diagnostics & Troubleshooting:
+            If the application encounters any issue on your system, detailed logs are saved at:
+            `%LOCALAPPDATA%\OmniDownloader\launcher.log`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
