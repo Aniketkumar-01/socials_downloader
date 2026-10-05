@@ -1,0 +1,42 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Media downloads storage
+downloads/
+*.mp4
+*.webm
+*.mp3
+*.m4a
+*.part
+*.ytdl
+
+# Sensitive credentials & session data
+cookies.txt
+*.cookies
+.env
+.env.*
+
+# Agent configurations & cache
+.agent/
+.impeccable/
+.gemini/
+.opencode/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
