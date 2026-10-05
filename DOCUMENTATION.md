@@ -199,6 +199,7 @@ OmniDownloader/
 │   └── app.ico                            # Committed multi-resolution application icon
 ├── .gitignore                             # Git ignore rules for virtualenvs, caches, media files, and build artifacts
 ├── DOCUMENTATION.md                       # Comprehensive architecture manual, API specifications, and threat model
+├── FILE_STRUCTURE.md                      # Annotated repository layout tree and component map
 ├── installer.iss                          # Inno Setup 6 compiler script for non-admin per-user Windows Setup wizard
 ├── launcher.py                            # Standalone desktop bootstrap launcher (port 0 discovery, Edge WebView2, token injection)
 ├── LICENSE                                # MIT open-source license

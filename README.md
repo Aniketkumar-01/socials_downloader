@@ -12,7 +12,7 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 
-[**Download Windows Installer**](https://github.com/Aniketkumar-01/socials_downloader/releases/latest) • [**Architecture & Documentation**](DOCUMENTATION.md) • [**Features**](#-features) • [**Quick Start**](#-quick-start-no-python-required) • [**FFmpeg Bundling**](#-built-in-ffmpeg-engine-1080p-4k--mp3) • [**Developer Guide**](#-developer-quick-start) • [**Security**](#-security--privacy-architecture)
+[**Download Windows Installer**](https://github.com/Aniketkumar-01/socials_downloader/releases/latest) • [**Architecture & Documentation**](DOCUMENTATION.md) • [**File Structure**](FILE_STRUCTURE.md) • [**Features**](#-features) • [**Quick Start**](#-quick-start-no-python-required) • [**FFmpeg Bundling**](#-built-in-ffmpeg-engine-1080p-4k--mp3) • [**Developer Guide**](#-developer-quick-start) • [**Security**](#-security--privacy-architecture)
 
 </div>
 

@@ -14,7 +14,11 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
-ignore = ["E501", "F401", "E402"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# launcher.py must apply Windows path/symlink patches and sys.path adjustments before importing app
+"launcher.py" = ["E402"]
 
 [tool.pytest.ini_options]
 pythonpath = ["backend"]

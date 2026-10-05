@@ -265,7 +265,7 @@ def main():
     try:
         import webview
         logger.info("Attempting to open native WebView2 window via PyWebView...")
-        window = webview.create_window(
+        webview.create_window(
             title="OmniDownloader",
             url=url,
             width=1180,

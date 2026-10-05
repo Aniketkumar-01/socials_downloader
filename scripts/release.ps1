@@ -21,7 +21,6 @@ $obsoletePaths = @(
     "$RepoRoot\DESIGN.md",
     "$RepoRoot\PRODUCT.md",
     "$RepoRoot\desktop.py",
-    "$RepoRoot\FILE_STRUCTURE.md",
     "$RepoRoot\push.bat",
     "$RepoRoot\push.ps1",
     "$RepoRoot\push_to_github.bat",
@@ -31,7 +30,6 @@ $obsoletePaths = @(
     "$RepoRoot\OmniDownloader.vbs",
     "$RepoRoot\create_desktop_shortcut.vbs",
     "$RepoRoot\start.bat",
-    "$RepoRoot\start.ps1",
     "$RepoRoot\build_exe.bat",
     "$RepoRoot\build_installer.bat",
     "$RepoRoot\create_icon.py",
@@ -46,8 +44,13 @@ foreach ($p in $obsoletePaths) {
 
 # 2. Stage and Commit
 Write-Host "[2/4] Committing latest changes to main..." -ForegroundColor Yellow
-git add -A
-git commit -m "$Message"
+$gitDiff = git status --porcelain
+if ($gitDiff) {
+    git add -A
+    git commit -m "$Message"
+} else {
+    Write-Host "  Working tree clean, no new changes to commit."
+}
 git push origin main
 
 # 3. Tag Release
