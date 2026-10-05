@@ -104,3 +104,103 @@ def test_quality_audio_mp3_format_generation():
     assert any(pp.get("key") == "FFmpegExtractAudio" for pp in postprocessors)
     mp3_pp = next(pp for pp in postprocessors if pp.get("key") == "FFmpegExtractAudio")
     assert mp3_pp.get("preferredcodec") == "mp3"
+
+
+def test_get_format_resolution_orientation_neutral():
+    """Verify that resolution is calculated as shorter side for both portrait and landscape."""
+    from app.downloader import get_format_resolution
+
+    # Landscape 1080p
+    assert get_format_resolution({"width": 1920, "height": 1080}) == 1080
+    # Portrait 1080p (Shorts / Reels)
+    assert get_format_resolution({"width": 1080, "height": 1920}) == 1080
+    # Landscape 720p
+    assert get_format_resolution({"width": 1280, "height": 720}) == 720
+    # Portrait 720p
+    assert get_format_resolution({"width": 720, "height": 1280}) == 720
+    # Single dimension
+    assert get_format_resolution({"height": 480}) == 480
+    assert get_format_resolution({"width": 640}) == 640
+
+
+def test_estimate_quality_sizes_distinct_sizes():
+    """Verify that videos with multiple qualities produce distinct estimated sizes and do not duplicate sizes."""
+    from app.downloader import estimate_quality_sizes
+
+    mock_info = {
+        "duration": 100,
+        "formats": [
+            # Audio
+            {"vcodec": "none", "acodec": "mp4a", "filesize": 1_000_000, "abr": 128},
+            # 480p video
+            {"vcodec": "avc1", "acodec": "none", "height": 480, "width": 854, "filesize": 5_000_000, "tbr": 1000},
+            # 720p video
+            {"vcodec": "avc1", "acodec": "none", "height": 720, "width": 1280, "filesize": 15_000_000, "tbr": 2500},
+            # 1080p video
+            {"vcodec": "avc1", "acodec": "none", "height": 1080, "width": 1920, "filesize": 35_000_000, "tbr": 5000},
+        ]
+    }
+
+    quality_sizes, quality_sizes_formatted, available_qualities = estimate_quality_sizes(mock_info)
+
+    assert "best" in available_qualities
+    assert "1080p" in available_qualities
+    assert "720p" in available_qualities
+    assert "480p" in available_qualities
+    assert "audio_mp3" in available_qualities
+
+    # Sizes must be strictly descending: 1080p > 720p > 480p > audio
+    size_1080 = quality_sizes["1080p"]
+    size_720 = quality_sizes["720p"]
+    size_480 = quality_sizes["480p"]
+    size_audio = quality_sizes["audio_mp3"]
+
+    assert size_1080 is not None and size_720 is not None and size_480 is not None
+    assert size_1080 > size_720 > size_480 > size_audio, (
+        f"Expected descending sizes, got: 1080p={size_1080}, 720p={size_720}, 480p={size_480}, audio={size_audio}"
+    )
+
+
+def test_available_qualities_filters_unavailable_tiers():
+    """If a video maxes out at 480p, 1080p and 720p must NOT be present in available_qualities."""
+    from app.downloader import estimate_quality_sizes
+
+    mock_info = {
+        "duration": 60,
+        "formats": [
+            {"vcodec": "none", "acodec": "mp4a", "filesize": 500_000},
+            {"vcodec": "avc1", "acodec": "none", "height": 480, "width": 854, "filesize": 3_000_000},
+            {"vcodec": "avc1", "acodec": "none", "height": 360, "width": 640, "filesize": 1_500_000},
+        ]
+    }
+
+    quality_sizes, quality_sizes_formatted, available_qualities = estimate_quality_sizes(mock_info)
+
+    # 1080p and 720p should not be offered for a 480p max video
+    assert "1080p" not in available_qualities
+    assert "720p" not in available_qualities
+    assert "480p" in available_qualities
+    assert "best" in available_qualities
+    assert "audio_mp3" in available_qualities
+
+
+def test_quality_options_2160p_and_360p_format_generation():
+    """Verify that 2160p and 360p qualities generate proper format strings."""
+    opts_4k = build_ydl_download_options(
+        quality="2160p",
+        output_dir=DOWNLOADS_DIR,
+        is_playlist=False,
+        platform="youtube"
+    )
+    assert "2160" in opts_4k.get("format", "")
+    assert "res:2160" in opts_4k.get("format_sort", [])
+
+    opts_360 = build_ydl_download_options(
+        quality="360p",
+        output_dir=DOWNLOADS_DIR,
+        is_playlist=False,
+        platform="youtube"
+    )
+    assert "360" in opts_360.get("format", "")
+    assert "res:360" in opts_360.get("format_sort", [])
+

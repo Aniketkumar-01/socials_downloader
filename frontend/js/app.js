@@ -356,9 +356,12 @@ function renderMediaInfo(info) {
       opt.value = q;
       const sizeTag = sizes[q] ? ` (${sizes[q]})` : "";
       if (q === "best") opt.textContent = `Best Quality (MP4)${sizeTag}`;
+      else if (q === "2160p" || q === "4k") opt.textContent = `4K 2160p (MP4)${sizeTag}`;
+      else if (q === "1440p" || q === "2k") opt.textContent = `2K 1440p (MP4)${sizeTag}`;
       else if (q === "1080p") opt.textContent = `Full HD 1080p (MP4)${sizeTag}`;
       else if (q === "720p") opt.textContent = `HD 720p (MP4)${sizeTag}`;
       else if (q === "480p") opt.textContent = `SD 480p (MP4)${sizeTag}`;
+      else if (q === "360p") opt.textContent = `SD 360p (MP4)${sizeTag}`;
       else if (q === "audio_mp3") opt.textContent = `Audio Only (MP3)${sizeTag}`;
       else opt.textContent = `${q.toUpperCase()}${sizeTag}`;
       qualitySelect.appendChild(opt);

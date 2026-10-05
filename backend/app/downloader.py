@@ -51,8 +51,16 @@ def estimate_format_bytes(fmt: Dict[str, Any], duration: Optional[Union[int, flo
             return int((bitrate_kbps * 1000 / 8) * float(dur))
     return None
 
-def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int]], Dict[str, str]]:
-    """Calculates approximate file sizes for each available quality option."""
+def get_format_resolution(f: Dict[str, Any]) -> int:
+    """Returns effective resolution dimension (shorter side for orientation neutrality)."""
+    h = f.get('height')
+    w = f.get('width')
+    if h and w and h > 0 and w > 0:
+        return min(int(h), int(w))
+    return int(h) if (h and h > 0) else (int(w) if (w and w > 0) else 0)
+
+def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int]], Dict[str, str], List[str]]:
+    """Calculates approximate file sizes and dynamically determines available quality options."""
     formats = info.get('formats') or []
     duration = info.get('duration')
 
@@ -64,33 +72,36 @@ def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int
     elif duration and duration > 0:
         best_audio_size = int((128 * 1000 / 8) * float(duration))
 
-    def get_best_video_size(max_dim: Optional[int]) -> Optional[int]:
-        matching = []
-        for f in formats:
-            if f.get('vcodec') == 'none':
-                continue
-            h = f.get('height')
-            w = f.get('width')
-            dim = h if (h and h > 0) else w
-            if max_dim is None or (dim and dim <= max_dim):
-                matching.append(f)
+    video_formats = [f for f in formats if f.get('vcodec') != 'none']
 
-        if not matching:
-            all_video = [f for f in formats if f.get('vcodec') != 'none']
-            if all_video:
-                matching = all_video
-            else:
+    def get_best_video_size(target_dim: Optional[int]) -> Optional[int]:
+        if not video_formats:
+            return None
+
+        if target_dim is None:
+            matching = list(video_formats)
+        else:
+            matching = [f for f in video_formats if get_format_resolution(f) <= target_dim]
+            if not matching:
+                # If slightly above (e.g. 724p for 720p target)
+                matching = [f for f in video_formats if get_format_resolution(f) <= target_dim * 1.05]
+            if not matching:
                 return None
 
         matching.sort(
             key=lambda f: (
-                f.get('height') or f.get('width') or 0,
+                get_format_resolution(f),
                 f.get('tbr') or f.get('vbr') or 0
             ),
             reverse=True
         )
         chosen = matching[0]
         v_size = estimate_format_bytes(chosen, duration)
+        if not v_size and duration and duration > 0:
+            target_res = target_dim or get_format_resolution(chosen) or 720
+            typical_kbps = {2160: 12000, 1440: 6000, 1080: 3500, 720: 2000, 480: 1000, 360: 600}.get(target_res, 1500)
+            v_size = int((typical_kbps * 1000 / 8) * float(duration))
+
         if not v_size:
             return None
 
@@ -98,17 +109,65 @@ def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int
             return v_size + best_audio_size
         return v_size
 
-    targets = {
-        "best": None,
+    # Dynamically determine available video qualities from actual formats
+    resolutions = [get_format_resolution(f) for f in video_formats if get_format_resolution(f) > 0]
+    max_res = max(resolutions) if resolutions else 0
+
+    available_qualities: List[str] = ["best"]
+    if any(r >= 2000 for r in resolutions):
+        available_qualities.append("2160p")
+    if any(1400 <= r < 2000 for r in resolutions):
+        available_qualities.append("1440p")
+    if any(1000 <= r < 1400 for r in resolutions):
+        available_qualities.append("1080p")
+    if any(700 <= r < 1000 for r in resolutions):
+        available_qualities.append("720p")
+    if any(450 <= r < 700 for r in resolutions):
+        available_qualities.append("480p")
+    if any(300 <= r < 450 for r in resolutions) and (max_res <= 480 or not any(450 <= r < 700 for r in resolutions)):
+        available_qualities.append("360p")
+
+    # If formats exist but didn't match standard bins, add closest tier to max_res
+    if len(available_qualities) == 1 and max_res > 0:
+        if max_res >= 1000:
+            available_qualities.append("1080p")
+        elif max_res >= 700:
+            available_qualities.append("720p")
+        elif max_res >= 450:
+            available_qualities.append("480p")
+        else:
+            available_qualities.append("360p")
+
+    available_qualities.append("audio_mp3")
+
+    tier_targets = {
+        "2160p": 2160,
+        "1440p": 1440,
         "1080p": 1080,
         "720p": 720,
         "480p": 480,
+        "360p": 360,
     }
 
     quality_sizes: Dict[str, Optional[int]] = {}
     quality_sizes_formatted: Dict[str, str] = {}
 
-    for q_key, max_dim in targets.items():
+    # Calculate best video size
+    best_v_size = get_best_video_size(None)
+    if best_v_size and best_v_size > 0:
+        quality_sizes["best"] = best_v_size
+        quality_sizes_formatted["best"] = f"~{format_size_bytes(best_v_size)}"
+    else:
+        g_size = info.get('filesize') or info.get('filesize_approx')
+        if g_size:
+            quality_sizes["best"] = int(g_size)
+            quality_sizes_formatted["best"] = f"~{format_size_bytes(g_size)}"
+
+    # Calculate sizes for each available specific tier
+    for q_key in available_qualities:
+        if q_key in ("best", "audio_mp3"):
+            continue
+        max_dim = tier_targets.get(q_key)
         v_size = get_best_video_size(max_dim)
         if v_size and v_size > 0:
             quality_sizes[q_key] = v_size
@@ -126,7 +185,7 @@ def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int
         quality_sizes["audio_mp3"] = mp3_size
         quality_sizes_formatted["audio_mp3"] = f"~{format_size_bytes(mp3_size)}"
 
-    return quality_sizes, quality_sizes_formatted
+    return quality_sizes, quality_sizes_formatted, available_qualities
 
 def detect_platform(url: str) -> str:
     """Detects social platform from URL."""
@@ -251,10 +310,10 @@ def get_base_ydl_opts(
     cookie_file: Optional[Path] = None
 ) -> Dict[str, Any]:
     """
-    Builds baseline configuration for yt-dlp, configuring User-Agent, cookies,
-    and client extractors (e.g. Android/iOS clients for YouTube to bypass bot verification).
+    Builds baseline configuration for yt-dlp, configuring User-Agent and cookies
+    without restricting YouTube format availability or stripping webpage configs.
     """
-    from app.config import COOKIES_FILE
+    from app.config import COOKIES_FILE, BASE_DIR
     opts: Dict[str, Any] = {
         'quiet': True,
         'no_warnings': True,
@@ -264,17 +323,14 @@ def get_base_ydl_opts(
         }
     }
 
-    # YouTube: Use mobile and TV client extraction to bypass web-only PoToken bot verification
-    if platform == "youtube":
-        opts['extractor_args'] = {
-            'youtube': {
-                'player_client': ['android', 'ios', 'tv_embedded', 'web'],
-                'player_skip': ['configs', 'webpage']
-            }
-        }
-
-    # 1. Determine active cookies (temp task file > user-data cookies.txt > browser)
-    active_cookie = cookie_file if cookie_file and cookie_file.exists() else (COOKIES_FILE if COOKIES_FILE.exists() else None)
+    # 1. Determine active cookies (temp task file > user-data cookies.txt > workspace cookies.txt > browser)
+    active_cookie = None
+    if cookie_file and Path(cookie_file).exists():
+        active_cookie = Path(cookie_file)
+    elif COOKIES_FILE.exists():
+        active_cookie = COOKIES_FILE
+    elif (BASE_DIR / "cookies.txt").exists():
+        active_cookie = BASE_DIR / "cookies.txt"
 
     if active_cookie:
         opts['cookiefile'] = str(active_cookie)
@@ -295,7 +351,7 @@ def extract_media_info(
 ) -> MediaInfoResponse:
     """
     Extracts metadata from YouTube, Instagram, TikTok, Twitter, Bilibili, and other platforms without downloading.
-    Includes automated local PC browser fallback for YouTube bot challenge.
+    Includes automated local PC browser fallback and emergency fallback for YouTube challenges.
     """
     platform = detect_platform(url)
     ydl_opts = get_base_ydl_opts(platform, cookie_browser, cookie_file)
@@ -305,7 +361,7 @@ def extract_media_info(
     info = None
     last_error = None
 
-    # Step 1: Attempt extraction with base options (including android/ios player clients)
+    # Step 1: Attempt extraction with base options (full web client formats)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -314,8 +370,9 @@ def extract_media_info(
         logger.warning(f"Standard extraction notice: {clean_error_message(str(last_error))}")
 
     # Step 2: Auto-probe local browsers on user's PC for YouTube if blocked
-    from app.config import COOKIES_FILE
-    if not info and platform == "youtube" and not (cookie_file and cookie_file.exists()) and not COOKIES_FILE.exists():
+    from app.config import COOKIES_FILE, BASE_DIR
+    has_cookies = (cookie_file and Path(cookie_file).exists()) or COOKIES_FILE.exists() or (BASE_DIR / "cookies.txt").exists()
+    if not info and platform == "youtube" and not has_cookies:
         for candidate in ['edge', 'chrome', 'firefox', 'brave']:
             try:
                 logger.info(f"Attempting bot bypass with local PC {candidate} browser session...")
@@ -329,6 +386,23 @@ def extract_media_info(
             except Exception as b_err:
                 logger.debug(f"{candidate} cookie attempt failed: {b_err}")
                 continue
+
+    # Step 3: Emergency fallback for YouTube if still blocked and no cookies worked
+    if not info and platform == "youtube":
+        try:
+            logger.info("Attempting emergency fallback client extraction for YouTube...")
+            fallback_opts = dict(ydl_opts)
+            fallback_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['tv_embedded', 'ios', 'android', 'web']
+                }
+            }
+            with yt_dlp.YoutubeDL(fallback_opts) as fb_ydl:
+                info = fb_ydl.extract_info(url, download=False)
+                if info:
+                    logger.info("Successfully extracted metadata using emergency fallback client!")
+        except Exception as fb_err:
+            logger.debug(f"Emergency fallback failed: {fb_err}")
 
     if not info:
         detail = map_ytdlp_error(last_error or 'Unknown extraction error')
@@ -417,7 +491,7 @@ def extract_media_info(
         thumbnail = info.get('thumbnail') or (info.get('thumbnails', [{}])[-1].get('url') if info.get('thumbnails') else None)
         channel = info.get('uploader') or info.get('channel') or info.get('uploader_id') or platform.title()
 
-        quality_sizes, quality_sizes_formatted = estimate_quality_sizes(info)
+        quality_sizes, quality_sizes_formatted, available_qualities = estimate_quality_sizes(info)
         best_size = quality_sizes.get("best") or info.get('filesize') or info.get('filesize_approx')
         best_formatted = quality_sizes_formatted.get("best") or (f"~{format_size_bytes(best_size)}" if best_size else None)
 
@@ -432,8 +506,6 @@ def extract_media_info(
             filesize=best_size,
             filesize_formatted=best_formatted
         )
-
-        available_qualities = ["best", "1080p", "720p", "480p", "audio_mp3"]
 
         return MediaInfoResponse(
             url=url,
@@ -600,7 +672,23 @@ def build_ydl_download_options(
         # Full separate video + audio stream extraction and container merging into MP4
         opts['merge_output_format'] = 'mp4'
 
-        if quality == "1080p":
+        if quality in ("2160p", "4k"):
+            opts['format'] = (
+                'bestvideo[height<=?2160]+bestaudio/'
+                'bestvideo[width<=?2160]+bestaudio/'
+                'best[height<=?2160]/best[width<=?2160]/'
+                'bestvideo+bestaudio/best'
+            )
+            opts['format_sort'] = ['res:2160', 'fps', 'vcodec:h264:vp9:av01', 'ext:mp4:m4a']
+        elif quality in ("1440p", "2k"):
+            opts['format'] = (
+                'bestvideo[height<=?1440]+bestaudio/'
+                'bestvideo[width<=?1440]+bestaudio/'
+                'best[height<=?1440]/best[width<=?1440]/'
+                'bestvideo+bestaudio/best'
+            )
+            opts['format_sort'] = ['res:1440', 'fps', 'vcodec:h264:vp9:av01', 'ext:mp4:m4a']
+        elif quality == "1080p":
             opts['format'] = (
                 'bestvideo[height<=?1080]+bestaudio/'
                 'bestvideo[width<=?1080]+bestaudio/'
@@ -624,18 +712,32 @@ def build_ydl_download_options(
                 'bestvideo+bestaudio/best'
             )
             opts['format_sort'] = ['res:480', 'fps', 'vcodec:h264:vp9:av01', 'ext:mp4:m4a']
+        elif quality == "360p":
+            opts['format'] = (
+                'bestvideo[height<=?360]+bestaudio/'
+                'bestvideo[width<=?360]+bestaudio/'
+                'best[height<=?360]/best[width<=?360]/'
+                'bestvideo+bestaudio/best'
+            )
+            opts['format_sort'] = ['res:360', 'fps', 'vcodec:h264:vp9:av01', 'ext:mp4:m4a']
         else:  # "best"
             opts['format'] = 'bestvideo+bestaudio/best'
             opts['format_sort'] = ['res', 'fps', 'vcodec:h264:vp9:av01', 'ext:mp4:m4a']
     else:
         # Fallback when FFmpeg is not installed: single container pre-muxed progressive streams only
         logger.warning(f"FFmpeg not available on system. Falling back to pre-muxed stream for quality={quality}")
-        if quality == "1080p":
+        if quality in ("2160p", "4k"):
+            opts['format'] = 'best[height<=?2160]/best[width<=?2160]/best'
+        elif quality in ("1440p", "2k"):
+            opts['format'] = 'best[height<=?1440]/best[width<=?1440]/best'
+        elif quality == "1080p":
             opts['format'] = 'best[height<=?1080]/best'
         elif quality == "720p":
             opts['format'] = 'best[height<=?720]/best'
         elif quality == "480p":
             opts['format'] = 'best[height<=?480]/best'
+        elif quality == "360p":
+            opts['format'] = 'best[height<=?360]/best'
         else:  # "best"
             opts['format'] = 'best'
 
