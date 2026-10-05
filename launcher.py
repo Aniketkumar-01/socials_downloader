@@ -143,7 +143,8 @@ def run_server(port: int):
             loop="asyncio",
             http="h11",
             ws="none",
-            lifespan="on"
+            lifespan="on",
+            log_config=None
         )
         server = uvicorn.Server(config)
         logger.info("Uvicorn server is now running.")

@@ -63,6 +63,7 @@ hiddenimports = [
     'platformdirs',
     'requests',
     'imageio_ffmpeg',
+    'colorama',
     'ctypes',
     'ctypes.wintypes',
 ]
