@@ -46,6 +46,9 @@ logger = logging.getLogger(__name__)
 # Startup random token for local API protection
 API_TOKEN = secrets.token_urlsafe(32)
 
+# Windows process creation flag to prevent console/cmd windows from popping up
+NO_WINDOW_FLAG = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000) if os.name == 'nt' else 0
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
@@ -206,10 +209,16 @@ async def serve_index():
 # --------------------------------------------------------------------------
 @app.post("/api/info", response_model=MediaInfoResponse)
 async def get_media_info(request: InfoRequest):
-    """Fetches title, thumbnails, format options, and playlist entries."""
+    """Fetches title, thumbnails, format options, and playlist entries with auto browser cookie fallback."""
     loop = asyncio.get_running_loop()
     cookie_browser_val = request.cookie_browser.value if request.cookie_browser else None
-    info = await loop.run_in_executor(task_manager.executor, extract_media_info, request.url, cookie_browser_val)
+    info = await loop.run_in_executor(
+        task_manager.executor,
+        extract_media_info,
+        request.url,
+        cookie_browser_val,
+        True
+    )
     return info
 
 @app.post("/api/download")
@@ -315,9 +324,9 @@ async def open_downloads_folder(task_id: Optional[str] = None):
         if os.name == 'nt':
             if target_path.is_file():
                 # Windows Explorer syntax: explorer.exe /select,"C:\path\file.mp4"
-                subprocess.Popen(f'explorer.exe /select,"{norm_path}"')
+                subprocess.Popen(f'explorer.exe /select,"{norm_path}"', creationflags=NO_WINDOW_FLAG)
             else:
-                subprocess.Popen(f'explorer.exe "{norm_path}"')
+                subprocess.Popen(f'explorer.exe "{norm_path}"', creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
             if target_path.is_file():
                 subprocess.Popen(["open", "-R", norm_path])
@@ -373,7 +382,7 @@ async def open_downloaded_file(task_id: str):
                 os.startfile(norm_path)
             except Exception as e:
                 logger.warning(f"os.startfile failed ({e}), attempting shell start: {norm_path}")
-                subprocess.Popen(f'start "" "{norm_path}"', shell=True)
+                subprocess.Popen(f'start "" "{norm_path}"', shell=True, creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
             subprocess.Popen(["open", norm_path])
         else:
@@ -473,7 +482,8 @@ if ($b -and $b.Self.Path) {{
         proc = await asyncio.create_subprocess_exec(
             "powershell", "-NoProfile", "-STA", "-EncodedCommand", encoded,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=NO_WINDOW_FLAG
         )
         stdout, stderr = await proc.communicate()
         chosen = stdout.decode("utf-8", errors="replace").strip().strip('"\'')
@@ -537,7 +547,8 @@ async def auto_install_ffmpeg():
             proc = await asyncio.create_subprocess_exec(
                 "winget", "install", "Gyan.FFmpeg", "--accept-package-agreements", "--accept-source-agreements", "--silent",
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                creationflags=NO_WINDOW_FLAG
             )
             try:
                 await asyncio.wait_for(proc.communicate(), timeout=35.0)
@@ -702,7 +713,7 @@ async def update_engine():
             "--target", str(ENGINE_DIR),
             "--no-warn-script-location"
         ]
-        proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True)
+        proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, creationflags=NO_WINDOW_FLAG)
         if proc.returncode != 0:
             raise RuntimeError(f"pip install failed: {proc.stderr or proc.stdout}")
 

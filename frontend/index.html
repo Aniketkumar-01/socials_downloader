@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OmniDownloader - Universal Video &amp; Playlist Downloader</title>
   <meta name="description" content="Fast, local-first media downloader for YouTube, Instagram, TikTok, X (Twitter), Bilibili, and more with real-time SSE progress.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300d2ff' stroke-width='2'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -50,6 +51,19 @@
         </div>
         <div class="alert-body">
           <span id="error-message">Error message</span>
+          <div id="bot-auth-helpers" class="bot-auth-helpers" style="display: none; margin-top: 10px;">
+            <div class="bot-helper-label">Resolve instantly on your PC using your local browser session:</div>
+            <div class="bot-helper-buttons">
+              <button type="button" class="btn-quick-browser" data-browser="edge">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Authenticate with Microsoft Edge
+              </button>
+              <button type="button" class="btn-quick-browser" data-browser="chrome">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Authenticate with Google Chrome
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -335,6 +349,64 @@
 
     <!-- Micro-Notification Container -->
     <div id="toast-container" class="toast-hub" aria-live="polite"></div>
+  </div>
+
+  <!-- System Command Permission & Choice Modal -->
+  <div id="cmd-permission-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="cmd-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-badge" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+        </div>
+        <div class="modal-header-text">
+          <h3 id="cmd-modal-title" class="modal-title">System Setup Permission</h3>
+          <p class="modal-subtitle">OmniDownloader runs 100% on your PC without external websites</p>
+        </div>
+        <button type="button" id="btn-close-cmd-modal" class="btn-modal-close" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-callout">
+          <strong>Why is this setup needed?</strong>
+          <p>High-resolution video streams (1080p, 4K) and MP3 audio are processed locally on your PC using FFmpeg. FFmpeg merges video and audio streams into single, high-quality playable MP4 files.</p>
+        </div>
+
+        <div class="modal-command-box">
+          <span class="cmd-label">Terminal command to be executed:</span>
+          <div class="cmd-snippet-row">
+            <code id="cmd-to-run">winget install Gyan.FFmpeg</code>
+            <button type="button" id="btn-modal-copy-cmd" class="btn-chip-copy" title="Copy command to clipboard">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="modal-notice">
+          We never execute terminal commands or open browser websites without your permission. You can choose to let the app install FFmpeg in the background, or do it yourself in your own terminal.
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="btn-diy-cmd" class="btn-modal-secondary" title="Copy command and run it yourself">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          <span>I'll Do It Myself</span>
+        </button>
+
+        <button type="button" id="btn-grant-permission-cmd" class="btn-modal-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span id="btn-grant-permission-text">Grant Permission &amp; Install</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="js/app.js"></script>

@@ -159,25 +159,28 @@ def map_ytdlp_error(err: Any) -> ErrorDetail:
     RATE_LIMITED, LIVE_STREAM, BOT_CHECK, FFMPEG_MISSING, ENGINE_OUTDATED, UNKNOWN.
     """
     clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', str(err)).strip()
+    # Strip any external website or wiki URLs from the error message
+    clean = re.sub(r'https?://\S+', '', clean).strip()
+    clean = re.sub(r'\s{2,}', ' ', clean)
     clean_lower = clean.lower()
 
     if "private video" in clean_lower or "this video is private" in clean_lower:
         return ErrorDetail(
             code="PRIVATE_VIDEO",
             message="This video is marked private by the owner.",
-            hint="Sign in with an authorized account or provide cookies.txt containing access."
+            hint="Select your logged-in browser from the Cookies selector or upload a cookies file."
         )
     if "age-restricted" in clean_lower or "confirm your age" in clean_lower or "sign in to view" in clean_lower:
         return ErrorDetail(
             code="AGE_RESTRICTED",
             message="This video is age-restricted and requires account verification.",
-            hint="Export cookies.txt while logged into your Google account and upload it to OmniDownloader."
+            hint="Select your logged-in browser (Chrome or Edge) from the Cookies dropdown to authenticate locally."
         )
-    if "confirm you're not a bot" in clean_lower or "confirm you’re not a bot" in clean_lower or "bot verification" in clean_lower:
+    if "not a bot" in clean_lower or "bot verification" in clean_lower or "sign in to confirm" in clean_lower or "confirm you" in clean_lower:
         return ErrorDetail(
             code="BOT_CHECK",
             message="YouTube requested bot verification for this video.",
-            hint="Upload your YouTube cookies.txt using the button in the app to authenticate your session."
+            hint="Select your browser (Edge or Chrome) from the 'Cookies / Auth' dropdown to authenticate directly on your PC."
         )
     if "available in your country" in clean_lower or "not available in your country" in clean_lower or "geo-restricted" in clean_lower or "blocked it in your country" in clean_lower:
         return ErrorDetail(
@@ -189,13 +192,13 @@ def map_ytdlp_error(err: Any) -> ErrorDetail:
         return ErrorDetail(
             code="MEMBERS_ONLY",
             message="This video is restricted to channel members only.",
-            hint="Upload cookies.txt from an account subscribed to this channel."
+            hint="Authenticate with a local browser session subscribed to this channel."
         )
     if "http error 429" in clean_lower or "too many requests" in clean_lower or "rate-limit" in clean_lower:
         return ErrorDetail(
             code="RATE_LIMITED",
             message="Too many requests sent to the media host.",
-            hint="Wait a few minutes before trying again or authenticate with cookies."
+            hint="Wait a few moments before trying again or authenticate with cookies."
         )
     if "is a live stream" in clean_lower or "live event will begin" in clean_lower or "premieres in" in clean_lower or "live event has ended" in clean_lower:
         return ErrorDetail(
@@ -219,18 +222,20 @@ def map_ytdlp_error(err: Any) -> ErrorDetail:
         return ErrorDetail(
             code="CONNECTION_TIMEOUT",
             message="Connection to media host timed out or was refused.",
-            hint="If this platform (e.g. TikTok) is banned or restricted in your country, you may need to use a VPN."
+            hint="If this platform (e.g. TikTok) is restricted in your area, you may need a VPN."
         )
 
     return ErrorDetail(
         code="UNKNOWN",
         message=clean or "An unexpected extraction error occurred.",
-        hint="Check the URL and your network connection. If this platform is banned in your country, you may need to use a VPN."
+        hint="Check the URL and your local network connection."
     )
 
 def clean_error_message(err_msg: str) -> str:
-    """Strips terminal ANSI color codes and formats readable errors."""
-    return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', str(err_msg)).strip()
+    """Strips terminal ANSI color codes, URLs, and formats readable errors."""
+    s = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', str(err_msg)).strip()
+    s = re.sub(r'https?://\S+', '', s).strip()
+    return re.sub(r'\s{2,}', ' ', s)
 
 def get_base_ydl_opts(
     platform: str, 
@@ -238,8 +243,8 @@ def get_base_ydl_opts(
     cookie_file: Optional[Path] = None
 ) -> Dict[str, Any]:
     """
-    Builds baseline configuration for yt-dlp, configuring User-Agent and cookies.
-    Preserves default multi-client extraction to access high-res DASH streams.
+    Builds baseline configuration for yt-dlp, configuring User-Agent, cookies,
+    and client extractors (e.g. Android/iOS clients for YouTube to bypass bot verification).
     """
     from app.config import COOKIES_FILE
     opts: Dict[str, Any] = {
@@ -250,6 +255,15 @@ def get_base_ydl_opts(
             'Accept-Language': 'en-US,en;q=0.9',
         }
     }
+
+    # YouTube: Use mobile and TV client extraction to bypass web-only PoToken bot verification
+    if platform == "youtube":
+        opts['extractor_args'] = {
+            'youtube': {
+                'player_client': ['android', 'ios', 'tv_embedded', 'web'],
+                'player_skip': ['configs', 'webpage']
+            }
+        }
 
     # 1. Determine active cookies (temp task file > user-data cookies.txt > browser)
     active_cookie = cookie_file if cookie_file and cookie_file.exists() else (COOKIES_FILE if COOKIES_FILE.exists() else None)
@@ -268,12 +282,12 @@ def get_base_ydl_opts(
 def extract_media_info(
     url: str, 
     cookie_browser: Optional[str] = None,
-    auto_probe_browsers: bool = False,
+    auto_probe_browsers: bool = True,
     cookie_file: Optional[Path] = None
 ) -> MediaInfoResponse:
     """
     Extracts metadata from YouTube, Instagram, TikTok, Twitter, Bilibili, and other platforms without downloading.
-    Includes explicit opt-in fallback for YouTube bot challenge.
+    Includes automated local PC browser fallback for YouTube bot challenge.
     """
     platform = detect_platform(url)
     ydl_opts = get_base_ydl_opts(platform, cookie_browser, cookie_file)
@@ -283,27 +297,26 @@ def extract_media_info(
     info = None
     last_error = None
 
-    # Step 1: Attempt extraction with base options
+    # Step 1: Attempt extraction with base options (including android/ios player clients)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except Exception as e:
         last_error = e
-        logger.warning(f"Standard extraction failed: {clean_error_message(str(last_error))}")
+        logger.warning(f"Standard extraction notice: {clean_error_message(str(last_error))}")
 
-    # Step 2: Auto-cookie recovery for YouTube ONLY IF explicitly enabled
+    # Step 2: Auto-probe local browsers on user's PC for YouTube if blocked
     from app.config import COOKIES_FILE
-    if not info and platform == "youtube" and auto_probe_browsers and not cookie_browser and not (cookie_file and cookie_file.exists()) and not COOKIES_FILE.exists():
+    if not info and platform == "youtube" and not (cookie_file and cookie_file.exists()) and not COOKIES_FILE.exists():
         for candidate in ['edge', 'chrome', 'firefox', 'brave']:
             try:
-                logger.info(f"Attempting bot bypass with {candidate} browser cookies...")
+                logger.info(f"Attempting bot bypass with local PC {candidate} browser session...")
                 retry_opts = dict(ydl_opts)
                 retry_opts['cookiesfrombrowser'] = (candidate, None, None, None)
-                retry_opts.pop('extractor_args', None)
                 with yt_dlp.YoutubeDL(retry_opts) as retry_ydl:
                     info = retry_ydl.extract_info(url, download=False)
                     if info:
-                        logger.info(f"Successfully extracted metadata using {candidate} cookies!")
+                        logger.info(f"Successfully extracted metadata using local {candidate} cookies!")
                         break
             except Exception as b_err:
                 logger.debug(f"{candidate} cookie attempt failed: {b_err}")

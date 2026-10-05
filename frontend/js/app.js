@@ -86,6 +86,16 @@ function formatBytes(bytes) {
 function showError(msg) {
   errorMessage.textContent = msg;
   errorAlert.style.display = "flex";
+
+  const botHelpers = document.getElementById("bot-auth-helpers");
+  if (botHelpers) {
+    const isBot = (msg || "").toLowerCase().includes("bot") || 
+                  (msg || "").toLowerCase().includes("sign in to confirm") || 
+                  (msg || "").toLowerCase().includes("verification") ||
+                  (msg || "").toLowerCase().includes("cookies");
+    botHelpers.style.display = isBot ? "block" : "none";
+  }
+
   errorAlert.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -108,7 +118,22 @@ export function showToast(msg, type = "info") {
 function clearError() {
   errorAlert.style.display = "none";
   errorMessage.textContent = "";
+  const botHelpers = document.getElementById("bot-auth-helpers");
+  if (botHelpers) botHelpers.style.display = "none";
 }
+
+// Quick Local Browser Auth Button Handlers
+document.querySelectorAll(".btn-quick-browser").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const browser = btn.dataset.browser;
+    if (cookieSelect) {
+      cookieSelect.value = browser;
+      showToast(`Selected ${browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome'} session. Re-trying on PC...`, "info");
+      clearError();
+      urlForm.dispatchEvent(new Event("submit"));
+    }
+  });
+});
 
 // Helper: Manage Download Button State
 function setDownloadButtonState(state, customText = null) {
@@ -824,41 +849,115 @@ async function checkPrerequisites() {
   }
 }
 
-// 1-Click Install FFmpeg handler
+// System Command Permission & Choice Modal Handlers
+const cmdPermissionModal = document.getElementById("cmd-permission-modal");
+const btnCloseCmdModal = document.getElementById("btn-close-cmd-modal");
+const btnModalCopyCmd = document.getElementById("btn-modal-copy-cmd");
+const btnDiyCmd = document.getElementById("btn-diy-cmd");
+const btnGrantPermissionCmd = document.getElementById("btn-grant-permission-cmd");
+const btnGrantPermissionText = document.getElementById("btn-grant-permission-text");
+const cmdToRun = document.getElementById("cmd-to-run");
+
+function openCmdModal() {
+  if (cmdPermissionModal) {
+    cmdPermissionModal.style.display = "flex";
+  }
+}
+
+function closeCmdModal() {
+  if (cmdPermissionModal) {
+    cmdPermissionModal.style.display = "none";
+  }
+}
+
+if (btnCloseCmdModal) {
+  btnCloseCmdModal.addEventListener("click", closeCmdModal);
+}
+
+if (cmdPermissionModal) {
+  cmdPermissionModal.addEventListener("click", (e) => {
+    if (e.target === cmdPermissionModal) closeCmdModal();
+  });
+}
+
+async function copyWingetCommand() {
+  const cmd = (cmdToRun && cmdToRun.textContent) || "winget install Gyan.FFmpeg";
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(cmd);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = cmd;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    showToast(`Copied to clipboard: '${cmd}'`, "info");
+  } catch (err) {
+    showToast(`Command: ${cmd}`, "info");
+  }
+}
+
+if (btnModalCopyCmd) {
+  btnModalCopyCmd.addEventListener("click", copyWingetCommand);
+}
+
+if (btnDiyCmd) {
+  btnDiyCmd.addEventListener("click", async () => {
+    await copyWingetCommand();
+    showToast("Command copied! Open your PowerShell or CMD terminal and run it whenever you want.", "success");
+    closeCmdModal();
+  });
+}
+
+// Clicking 1-Click Install opens the permission & explanation modal first!
 if (btnInstallFfmpeg) {
-  btnInstallFfmpeg.addEventListener("click", async () => {
+  btnInstallFfmpeg.addEventListener("click", () => {
+    openCmdModal();
+  });
+}
+
+// User grants explicit permission to install in background
+if (btnGrantPermissionCmd) {
+  btnGrantPermissionCmd.addEventListener("click", async () => {
     try {
-      btnInstallFfmpeg.disabled = true;
-      if (btnInstallFfmpegText) {
-        btnInstallFfmpegText.textContent = "Installing FFmpeg (approx 30s)...";
+      btnGrantPermissionCmd.disabled = true;
+      if (btnGrantPermissionText) {
+        btnGrantPermissionText.textContent = "Installing on your PC (silent background)...";
       }
-      showToast("Downloading and installing FFmpeg in background...", "info");
+      showToast("Installing FFmpeg locally on your PC (no windows will pop up)...", "info");
 
       const res = await installFfmpeg();
       showToast(res.message || "FFmpeg installed successfully!", "success");
 
       // Visual success confirmation in banner
-      prerequisitesBanner.classList.add("prereq-ready");
-      const titleEl = prerequisitesBanner.querySelector(".prereq-title");
-      const descEl = document.getElementById("prereq-desc");
-      if (titleEl) titleEl.textContent = "✓ FFmpeg Ready";
-      if (descEl) descEl.textContent = "High-resolution stream merging (1080p, 4K) and MP3 conversion are now active.";
+      if (prerequisitesBanner) {
+        prerequisitesBanner.classList.add("prereq-ready");
+        const titleEl = prerequisitesBanner.querySelector(".prereq-title");
+        const descEl = document.getElementById("prereq-desc");
+        if (titleEl) titleEl.textContent = "✓ FFmpeg Ready";
+        if (descEl) descEl.textContent = "High-resolution stream merging (1080p, 4K) and MP3 conversion are now active.";
+        if (btnInstallFfmpeg) btnInstallFfmpeg.style.display = "none";
+      }
 
-      btnInstallFfmpeg.style.display = "none";
+      closeCmdModal();
 
       setTimeout(() => {
-        prerequisitesBanner.style.transition = "all 0.5s ease";
-        prerequisitesBanner.style.opacity = "0";
-        setTimeout(() => {
-          prerequisitesBanner.style.display = "none";
-        }, 500);
+        if (prerequisitesBanner) {
+          prerequisitesBanner.style.transition = "all 0.5s ease";
+          prerequisitesBanner.style.opacity = "0";
+          setTimeout(() => {
+            prerequisitesBanner.style.display = "none";
+          }, 500);
+        }
       }, 4000);
     } catch (err) {
       console.error("FFmpeg install error:", err);
-      showError(err.message || "Could not install FFmpeg automatically. Please use the winget command below.");
-      btnInstallFfmpeg.disabled = false;
-      if (btnInstallFfmpegText) {
-        btnInstallFfmpegText.textContent = "Retry 1-Click Install";
+      showError(err.message || "Could not install FFmpeg automatically. You can copy the command and run it in terminal.");
+      btnGrantPermissionCmd.disabled = false;
+      if (btnGrantPermissionText) {
+        btnGrantPermissionText.textContent = "Retry Installation";
       }
     }
   });
