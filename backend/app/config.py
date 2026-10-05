@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import json
 from pathlib import Path
 
 # Paths
@@ -22,6 +23,44 @@ except Exception:
 
 USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+SETTINGS_FILE = USER_DATA_DIR / "settings.json"
+
+def get_default_download_dir() -> Path:
+    """Returns the persistent configured download directory, defaulting to Windows User Downloads."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            custom = data.get("download_dir")
+            if custom:
+                p = Path(custom).resolve()
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+        except Exception:
+            pass
+
+    # Default to user's real Windows Downloads folder if available
+    user_downloads = Path.home() / "Downloads"
+    if user_downloads.exists() and user_downloads.is_dir():
+        return user_downloads
+    return DOWNLOADS_DIR
+
+def set_download_dir(path: Path) -> Path:
+    """Sets and persists the user's custom download directory."""
+    clean_str = str(path).strip().strip('"\'')
+    resolved = Path(clean_str).expanduser().resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    settings = {}
+    if SETTINGS_FILE.exists():
+        try:
+            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            settings = {}
+    settings["download_dir"] = str(resolved)
+    try:
+        SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+    return resolved
 
 # Engine directory for isolated yt-dlp runtime updates
 ENGINE_DIR = USER_DATA_DIR / "engine"

@@ -8,8 +8,9 @@ from typing import Dict, Optional, List, Set, AsyncGenerator
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
+from yt_dlp.utils import DownloadCancelled
 
-from app.config import DOWNLOADS_DIR, MAX_DOWNLOAD_WORKERS, USER_DATA_DIR, COOKIES_FILE
+from app.config import DOWNLOADS_DIR, MAX_DOWNLOAD_WORKERS, USER_DATA_DIR, COOKIES_FILE, get_default_download_dir
 from app.models import DownloadRequest, DownloadTaskStatus
 from app.downloader import build_ydl_download_options, extract_media_info, map_ytdlp_error
 
@@ -203,7 +204,7 @@ class TaskManager:
             # Progress hook callback
             def progress_hook(d: Dict):
                 if self.is_cancelled(task_id):
-                    raise CancelledDownload("Download cancelled by user.")
+                    raise DownloadCancelled("Download cancelled by user.")
 
                 status = d.get('status')
                 if status == 'downloading':
@@ -230,12 +231,12 @@ class TaskManager:
                 elif status == 'finished':
                     final_path = d.get('filename')
                     if final_path:
-                        downloaded_files.append(final_path)
+                        downloaded_files.append(str(final_path))
 
             # Postprocessor hook callback for "merging" status
             def postprocessor_hook(d: Dict):
                 if self.is_cancelled(task_id):
-                    raise CancelledDownload("Download cancelled by user.")
+                    raise DownloadCancelled("Download cancelled by user.")
 
                 pp_name = d.get('postprocessor', '')
                 pp_status = d.get('status', '')
@@ -247,13 +248,17 @@ class TaskManager:
                         current_item=f"Merging audio and video streams ({pp_name or 'ffmpeg'})..."
                     )
                 elif pp_status == 'finished':
-                    final_fp = d.get('filepath') or (d.get('info_dict') or {}).get('_filename')
+                    final_fp = d.get('filepath') or (d.get('info_dict') or {}).get('_filename') or (d.get('info_dict') or {}).get('filepath')
                     if final_fp:
-                        downloaded_files.append(final_fp)
+                        downloaded_files.append(str(final_fp))
+
+            clean_target = request.download_dir.strip().strip('"\'') if request.download_dir else None
+            target_out_dir = Path(clean_target).expanduser().resolve() if clean_target else get_default_download_dir()
+            target_out_dir.mkdir(parents=True, exist_ok=True)
 
             ydl_opts = build_ydl_download_options(
                 quality=request.quality,
-                output_dir=DOWNLOADS_DIR,
+                output_dir=target_out_dir,
                 is_playlist=request.is_playlist,
                 playlist_title=playlist_title,
                 platform=media_info.platform,
@@ -268,18 +273,42 @@ class TaskManager:
                 if request.is_playlist and request.selected_video_ids:
                     for idx, item in enumerate(items_to_download, 1):
                         if self.is_cancelled(task_id):
-                            raise CancelledDownload("Download cancelled by user.")
+                            raise DownloadCancelled("Download cancelled by user.")
                         self.update_task_from_thread(
                             task_id,
                             current_item=f"({idx}/{total_items}) {item.title}",
                             completed_items=idx - 1
                         )
-                        ydl.download([item.url])
+                        info = ydl.extract_info(item.url, download=True)
+                        if info:
+                            if 'requested_downloads' in info and info['requested_downloads']:
+                                for req_d in info['requested_downloads']:
+                                    fp = req_d.get('filepath') or req_d.get('_filename')
+                                    if fp:
+                                        downloaded_files.append(str(fp))
+                            elif info.get('filepath'):
+                                downloaded_files.append(str(info['filepath']))
+                            elif info.get('_filename'):
+                                downloaded_files.append(str(info['_filename']))
+                            else:
+                                downloaded_files.append(str(ydl.prepare_filename(info)))
                 else:
                     self.update_task_from_thread(task_id, current_item=media_info.title)
-                    ydl.download([request.url])
+                    info = ydl.extract_info(request.url, download=True)
+                    if info:
+                        if 'requested_downloads' in info and info['requested_downloads']:
+                            for req_d in info['requested_downloads']:
+                                fp = req_d.get('filepath') or req_d.get('_filename')
+                                if fp:
+                                    downloaded_files.append(str(fp))
+                        elif info.get('filepath'):
+                            downloaded_files.append(str(info['filepath']))
+                        elif info.get('_filename'):
+                            downloaded_files.append(str(info['_filename']))
+                        else:
+                            downloaded_files.append(str(ydl.prepare_filename(info)))
 
-            # Resolve actual downloaded files on disk
+            # Resolve actual downloaded files on disk safely without bracket-glob syntax issues
             resolved_files = []
             valid_exts = ('.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.wav', '.opus', '.flac')
             for f in downloaded_files:
@@ -289,12 +318,23 @@ class TaskManager:
                 else:
                     # Strip temporary format markers like .f137, .f248, .temp
                     clean_stem = re.sub(r'(\.f[0-9]+|\.temp)$', '', p.stem)
-                    matches = [
-                        m for m in p.parent.glob(f"{clean_stem}.*")
-                        if m.is_file() and m.suffix.lower() in valid_exts
-                    ]
-                    if matches:
-                        resolved_files.append(str(matches[0].resolve()))
+                    if p.parent.exists() and p.parent.is_dir():
+                        matches = [
+                            m for m in p.parent.iterdir()
+                            if m.is_file() and m.suffix.lower() in valid_exts and (m.stem == clean_stem or m.stem.startswith(clean_stem[:30]))
+                        ]
+                        if matches:
+                            resolved_files.append(str(matches[0].resolve()))
+
+            # If resolved_files is still empty, fallback to the newest media file created in target_out_dir
+            if not resolved_files and target_out_dir.exists():
+                recent_files = [
+                    f for f in target_out_dir.iterdir()
+                    if f.is_file() and f.suffix.lower() in valid_exts
+                ]
+                if recent_files:
+                    recent_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                    resolved_files.append(str(recent_files[0].resolve()))
 
             # Deduplicate preserving order
             resolved_files = list(dict.fromkeys(resolved_files))
@@ -311,20 +351,33 @@ class TaskManager:
                 current_item="Download completed successfully!",
                 output_files=resolved_files
             )
-            logger.info(f"Task {task_id} completed successfully.")
+            logger.info(f"Task {task_id} completed successfully. Output files: {resolved_files}")
 
-        except CancelledDownload as ce:
+        except (CancelledDownload, DownloadCancelled) as ce:
             logger.info(f"Task {task_id} cancelled: {ce}")
             self.update_task_from_thread(
                 task_id,
                 force_notify=True,
                 status="cancelled",
-                error_message=str(ce),
+                error_message="Download was cancelled by user.",
                 current_item="Download was cancelled.",
                 speed_str="--",
                 eta_str="--"
             )
         except Exception as e:
+            if self.is_cancelled(task_id) or "Download cancelled" in str(e):
+                logger.info(f"Task {task_id} was cancelled during execution: {e}")
+                self.update_task_from_thread(
+                    task_id,
+                    force_notify=True,
+                    status="cancelled",
+                    error_message="Download was cancelled by user.",
+                    current_item="Download was cancelled.",
+                    speed_str="--",
+                    eta_str="--"
+                )
+                return
+
             logger.error(f"Error executing download task {task_id}: {e}", exc_info=True)
             detail = map_ytdlp_error(e)
             self.update_task_from_thread(

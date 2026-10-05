@@ -4,11 +4,12 @@
  */
 
 export class ProgressTracker {
-  constructor(taskId, { onProgress, onComplete, onError }) {
+  constructor(taskId, { onProgress, onComplete, onError, onCancel }) {
     this.taskId = taskId;
     this.onProgress = onProgress || (() => {});
     this.onComplete = onComplete || (() => {});
     this.onError = onError || (() => {});
+    this.onCancel = onCancel || (() => {});
     this.eventSource = null;
     this.pollInterval = null;
     this.isFinished = false;
@@ -36,7 +37,7 @@ export class ProgressTracker {
       this.close();
     } else if (data.status === "cancelled") {
       this.isFinished = true;
-      this.onError("Download was cancelled.");
+      this.onCancel(data);
       this.close();
     }
   }

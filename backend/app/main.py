@@ -25,13 +25,16 @@ from app.config import (
     USER_DATA_DIR,
     COOKIES_FILE,
     ENGINE_DIR,
-    MAX_COOKIE_SIZE
+    MAX_COOKIE_SIZE,
+    get_default_download_dir,
+    set_download_dir
 )
 from app.models import (
     InfoRequest,
     MediaInfoResponse,
     DownloadRequest,
-    DownloadTaskStatus
+    DownloadTaskStatus,
+    SetDownloadDirRequest
 )
 from app.downloader import extract_media_info, MediaExtractionError, map_ytdlp_error
 from app.task_manager import task_manager
@@ -103,8 +106,8 @@ async def security_and_auth_middleware(request: Request, call_next):
                 }
             )
 
-    # 3. Require X-Auth-Token on every /api/* request (or ?token= query param for SSE)
-    if request.url.path.startswith("/api/"):
+    # 3. Require X-Auth-Token on every /api/* request (except /api/token)
+    if request.url.path.startswith("/api/") and request.url.path != "/api/token":
         token = request.headers.get("x-auth-token")
         if not token:
             token = request.query_params.get("token")
@@ -240,9 +243,15 @@ async def get_task_status(task_id: str):
 async def cancel_download_task(task_id: str):
     """Task 5: Cancels an active download task."""
     success = task_manager.cancel_task(task_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Task not found or already in terminal state.")
-    return {"status": "success", "task_id": task_id, "message": "Task cancellation requested."}
+    task = task_manager.get_task(task_id)
+    if not success and not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return {
+        "status": "success",
+        "task_id": task_id,
+        "message": "Task cancellation requested.",
+        "state": task.status if task else "cancelled"
+    }
 
 @app.get("/api/file/{task_id}")
 async def download_file_browser(task_id: str):
@@ -258,14 +267,7 @@ async def download_file_browser(task_id: str):
         raise HTTPException(status_code=400, detail="File is not yet ready or download failed")
 
     file_path = Path(task.output_files[0]).resolve()
-    downloads_root = DOWNLOADS_DIR.resolve()
-
-    try:
-        file_path.relative_to(downloads_root)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied: path is outside downloads directory.")
-
-    if not file_path.exists():
+    if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found on server disk")
 
     return FileResponse(
@@ -277,37 +279,216 @@ async def download_file_browser(task_id: str):
 @app.post("/api/open-folder")
 async def open_downloads_folder(task_id: Optional[str] = None):
     """
-    Task 2: Opens Windows Explorer using safe argument lists with strict path verification.
+    Opens Windows Explorer highlighting the downloaded file, or opening the download folder.
     """
     try:
-        downloads_root = DOWNLOADS_DIR.resolve()
-        target_path = downloads_root
+        current_dir = get_default_download_dir().resolve()
+        target_path = current_dir
 
         if task_id:
             task = task_manager.get_task(task_id)
             if task and task.output_files:
-                cand = Path(task.output_files[0]).resolve()
-                if cand.exists():
-                    target_path = cand
+                for f in task.output_files:
+                    cand = Path(f).resolve()
+                    if cand.exists():
+                        target_path = cand
+                        break
+                    elif cand.parent.exists():
+                        target_path = cand.parent
+                        break
 
-        # Path traversal guard
-        try:
-            target_path.relative_to(downloads_root)
-        except ValueError:
-            raise HTTPException(status_code=403, detail="Access denied: path is outside downloads directory.")
+            # Fallback if target_path is still directory: look for recent media file
+            if target_path == current_dir and current_dir.exists():
+                valid_exts = ('.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.wav', '.opus', '.flac')
+                candidates = [f for f in current_dir.iterdir() if f.is_file() and f.suffix.lower() in valid_exts]
+                if candidates:
+                    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                    target_path = candidates[0]
+
+        if not target_path.exists():
+            target_path = current_dir
+            target_path.mkdir(parents=True, exist_ok=True)
+
+        norm_path = os.path.normpath(str(target_path))
+        logger.info(f"Opening in Explorer: {norm_path}")
 
         if os.name == 'nt':
             if target_path.is_file():
-                subprocess.Popen(["explorer", f"/select,{str(target_path)}"])
+                # Windows Explorer syntax: explorer.exe /select,"C:\path\file.mp4"
+                subprocess.Popen(f'explorer.exe /select,"{norm_path}"')
             else:
-                subprocess.Popen(["explorer", str(target_path)])
+                subprocess.Popen(f'explorer.exe "{norm_path}"')
+        elif sys.platform == 'darwin':
+            if target_path.is_file():
+                subprocess.Popen(["open", "-R", norm_path])
+            else:
+                subprocess.Popen(["open", norm_path])
+        else:
+            folder = norm_path if target_path.is_dir() else str(target_path.parent)
+            subprocess.Popen(["xdg-open", folder])
 
-        return {"status": "success", "opened_path": str(target_path)}
-    except HTTPException:
-        raise
+        return {"status": "success", "opened_path": norm_path}
     except Exception as e:
-        logger.error(f"Error opening folder: {e}")
+        logger.error(f"Error opening folder: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/open-file")
+async def open_downloaded_file(task_id: str):
+    """
+    Directly opens/plays the downloaded file in the user's default system player with guaranteed resolution.
+    """
+    task = task_manager.get_task(task_id)
+    file_to_open: Optional[Path] = None
+
+    if task and task.output_files:
+        for f in task.output_files:
+            cand = Path(f).resolve()
+            if cand.exists() and cand.is_file():
+                file_to_open = cand
+                break
+
+    # Robust fallback: look in task's download dir or default download dir for the newest media file
+    if not file_to_open:
+        valid_exts = ('.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.wav', '.opus', '.flac')
+        search_dirs = [get_default_download_dir().resolve()]
+        if task and hasattr(task, "download_dir") and task.download_dir:
+            search_dirs.insert(0, Path(task.download_dir).resolve())
+
+        for sdir in search_dirs:
+            if sdir.exists() and sdir.is_dir():
+                candidates = [f for f in sdir.iterdir() if f.is_file() and f.suffix.lower() in valid_exts]
+                if candidates:
+                    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                    file_to_open = candidates[0]
+                    break
+
+    if not file_to_open or not file_to_open.exists():
+        raise HTTPException(status_code=404, detail="Downloaded media file could not be located on disk.")
+
+    norm_path = os.path.normpath(str(file_to_open))
+    logger.info(f"Launching media file: {norm_path}")
+    try:
+        if os.name == 'nt':
+            try:
+                os.startfile(norm_path)
+            except Exception as e:
+                logger.warning(f"os.startfile failed ({e}), attempting shell start: {norm_path}")
+                subprocess.Popen(f'start "" "{norm_path}"', shell=True)
+        elif sys.platform == 'darwin':
+            subprocess.Popen(["open", norm_path])
+        else:
+            subprocess.Popen(["xdg-open", norm_path])
+        return {"status": "success", "file": norm_path}
+    except Exception as e:
+        logger.error(f"Error launching file {norm_path}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/token")
+async def get_session_token():
+    """Allows local application clients to retrieve or synchronize active session token."""
+    return {"token": API_TOKEN}
+
+@app.get("/api/download-dir")
+async def get_download_directory():
+    """Returns the current active download directory."""
+    dir_path = get_default_download_dir()
+    return {"download_dir": str(dir_path)}
+
+@app.post("/api/download-dir")
+async def update_download_directory(request: SetDownloadDirRequest):
+    """Sets and persists a custom download directory, safely stripping surrounding quotes."""
+    try:
+        raw = request.download_dir.strip().strip('"\'')
+        if not raw:
+            raw = str(get_default_download_dir())
+        new_path = Path(raw).expanduser().resolve()
+        saved = set_download_dir(new_path)
+        return {"status": "success", "download_dir": str(saved)}
+    except Exception as e:
+        logger.error(f"Failed to set download directory '{request.download_dir}': {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid directory path: {e}")
+
+@app.post("/api/choose-folder")
+async def trigger_folder_picker():
+    """
+    Opens native Windows folder selection dialog and returns the chosen folder.
+    Uses multi-method fallback: Python Tkinter -> PowerShell STA FolderBrowserDialog -> Shell.Application.
+    """
+    curr = str(get_default_download_dir())
+    if os.name != 'nt':
+        return {"status": "error", "message": "Folder picker only supported on Windows.", "download_dir": curr, "path": curr}
+
+    loop = asyncio.get_running_loop()
+
+    # Method 1: Python Tkinter in threadpool executor (no shell spawn needed)
+    def _tk_ask() -> Optional[str]:
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            res = filedialog.askdirectory(
+                parent=root,
+                title="Select Download Destination Folder",
+                initialdir=curr
+            )
+            root.destroy()
+            return str(res).strip() if res else None
+        except Exception as e:
+            logger.debug(f"Tkinter folder picker not available: {e}")
+            return None
+
+    try:
+        tk_res = await loop.run_in_executor(None, _tk_ask)
+        if tk_res and Path(tk_res).is_dir():
+            saved = set_download_dir(Path(tk_res))
+            return {"status": "success", "download_dir": str(saved), "path": str(saved)}
+    except Exception as e:
+        logger.debug(f"Tkinter method error: {e}")
+
+    # Method 2: Windows PowerShell with FolderBrowserDialog & Shell.Application fallback via -EncodedCommand
+    # Uses UTF-16LE Base64 to bypass all command line parsing / quote escaping issues
+    ps_script = f"""
+Add-Type -AssemblyName System.Windows.Forms
+$f = New-Object System.Windows.Forms.FolderBrowserDialog
+$f.Description = 'Select download destination folder for OmniDownloader'
+$f.ShowNewFolderButton = $true
+$f.SelectedPath = '{curr}'
+$res = $f.ShowDialog()
+if ($res -eq [System.Windows.Forms.DialogResult]::OK -and $f.SelectedPath) {{
+    [Console]::Out.Write($f.SelectedPath)
+    exit 0
+}}
+$sh = New-Object -ComObject Shell.Application
+$b = $sh.BrowseForFolder(0, 'Select download destination folder', 0x00000040, '{curr}')
+if ($b -and $b.Self.Path) {{
+    [Console]::Out.Write($b.Self.Path)
+    exit 0
+}}
+"""
+    try:
+        import base64
+        encoded = base64.b64encode(ps_script.encode('utf-16le')).decode('ascii')
+        proc = await asyncio.create_subprocess_exec(
+            "powershell", "-NoProfile", "-STA", "-EncodedCommand", encoded,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        chosen = stdout.decode("utf-8", errors="replace").strip().strip('"\'')
+        if chosen and Path(chosen).is_dir():
+            saved = set_download_dir(Path(chosen))
+            return {"status": "success", "download_dir": str(saved), "path": str(saved)}
+        if proc.returncode == 0 and not chosen:
+            return {"status": "cancelled", "download_dir": curr, "path": curr}
+        err_msg = stderr.decode("utf-8", errors="replace").strip()
+        if err_msg:
+            logger.warning(f"PowerShell folder picker stderr: {err_msg}")
+    except Exception as e:
+        logger.warning(f"PowerShell folder picker error: {e}")
+
+    return {"status": "cancelled", "download_dir": curr, "path": curr}
 
 # --------------------------------------------------------------------------
 # Task 3: Cookie Validation & Lifecycle

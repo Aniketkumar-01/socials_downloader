@@ -21,6 +21,111 @@ def format_seconds(seconds: Optional[Union[int, float]]) -> Optional[str]:
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
     return f"{minutes:02d}:{secs:02d}"
 
+def format_size_bytes(num_bytes: Optional[Union[int, float]]) -> Optional[str]:
+    """Formats byte counts into clean human-readable strings (e.g. '142 MB', '1.2 GB')."""
+    if num_bytes is None or num_bytes <= 0:
+        return None
+    num = float(num_bytes)
+    if num >= 1024 ** 3:
+        return f"{num / (1024 ** 3):.2f} GB"
+    elif num >= 1024 ** 2:
+        return f"{num / (1024 ** 2):.1f} MB"
+    elif num >= 1024:
+        return f"{num / 1024:.1f} KB"
+    return f"{int(num)} B"
+
+def estimate_format_bytes(fmt: Dict[str, Any], duration: Optional[Union[int, float]]) -> Optional[int]:
+    """Estimates byte size of a stream format from filesize, filesize_approx, or bitrate * duration."""
+    size = fmt.get('filesize') or fmt.get('filesize_approx')
+    if size and size > 0:
+        return int(size)
+    dur = duration or fmt.get('duration')
+    if dur and dur > 0:
+        tbr = fmt.get('tbr')
+        vbr = fmt.get('vbr') or 0
+        abr = fmt.get('abr') or 0
+        bitrate_kbps = tbr if (tbr and tbr > 0) else (vbr + abr)
+        if bitrate_kbps and bitrate_kbps > 0:
+            return int((bitrate_kbps * 1000 / 8) * float(dur))
+    return None
+
+def estimate_quality_sizes(info: Dict[str, Any]) -> tuple[Dict[str, Optional[int]], Dict[str, str]]:
+    """Calculates approximate file sizes for each available quality option."""
+    formats = info.get('formats') or []
+    duration = info.get('duration')
+
+    audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('acodec') != 'none']
+    best_audio_size = 0
+    if audio_formats:
+        audio_formats.sort(key=lambda f: f.get('abr') or f.get('tbr') or 0, reverse=True)
+        best_audio_size = estimate_format_bytes(audio_formats[0], duration) or 0
+    elif duration and duration > 0:
+        best_audio_size = int((128 * 1000 / 8) * float(duration))
+
+    def get_best_video_size(max_dim: Optional[int]) -> Optional[int]:
+        matching = []
+        for f in formats:
+            if f.get('vcodec') == 'none':
+                continue
+            h = f.get('height')
+            w = f.get('width')
+            dim = h if (h and h > 0) else w
+            if max_dim is None or (dim and dim <= max_dim):
+                matching.append(f)
+
+        if not matching:
+            all_video = [f for f in formats if f.get('vcodec') != 'none']
+            if all_video:
+                matching = all_video
+            else:
+                return None
+
+        matching.sort(
+            key=lambda f: (
+                f.get('height') or f.get('width') or 0,
+                f.get('tbr') or f.get('vbr') or 0
+            ),
+            reverse=True
+        )
+        chosen = matching[0]
+        v_size = estimate_format_bytes(chosen, duration)
+        if not v_size:
+            return None
+
+        if chosen.get('acodec') == 'none' and best_audio_size:
+            return v_size + best_audio_size
+        return v_size
+
+    targets = {
+        "best": None,
+        "1080p": 1080,
+        "720p": 720,
+        "480p": 480,
+    }
+
+    quality_sizes: Dict[str, Optional[int]] = {}
+    quality_sizes_formatted: Dict[str, str] = {}
+
+    for q_key, max_dim in targets.items():
+        v_size = get_best_video_size(max_dim)
+        if v_size and v_size > 0:
+            quality_sizes[q_key] = v_size
+            quality_sizes_formatted[q_key] = f"~{format_size_bytes(v_size)}"
+        else:
+            g_size = info.get('filesize') or info.get('filesize_approx')
+            if g_size:
+                quality_sizes[q_key] = int(g_size)
+                quality_sizes_formatted[q_key] = f"~{format_size_bytes(g_size)}"
+
+    mp3_size = best_audio_size
+    if not mp3_size and duration:
+        mp3_size = int((192 * 1000 / 8) * float(duration))
+    if mp3_size and mp3_size > 0:
+        quality_sizes["audio_mp3"] = mp3_size
+        quality_sizes_formatted["audio_mp3"] = f"~{format_size_bytes(mp3_size)}"
+
+    return quality_sizes, quality_sizes_formatted
+
 def detect_platform(url: str) -> str:
     """Detects social platform from URL."""
     url_lower = url.lower()
@@ -214,6 +319,8 @@ def extract_media_info(
     if is_playlist:
         entries = info.get('entries', []) or []
         items: List[VideoItem] = []
+        total_playlist_bytes = 0
+
         for entry in entries:
             if not entry:
                 continue
@@ -221,6 +328,14 @@ def extract_media_info(
             video_url = entry.get('url') or entry.get('webpage_url') or url
             duration = entry.get('duration')
             title = entry.get('title') or entry.get('description', '').split('\n')[0][:80] or f"Item {len(items)+1}"
+            
+            # File size estimation for playlist item
+            item_bytes = entry.get('filesize') or entry.get('filesize_approx')
+            if not item_bytes and duration:
+                item_bytes = int((2000 * 1000 / 8) * float(duration))
+            if item_bytes:
+                total_playlist_bytes += int(item_bytes)
+
             items.append(
                 VideoItem(
                     id=entry_id or str(len(items)+1),
@@ -229,13 +344,29 @@ def extract_media_info(
                     duration=duration,
                     duration_string=format_seconds(duration),
                     thumbnail=entry.get('thumbnail') or (entry.get('thumbnails', [{}])[-1].get('url') if entry.get('thumbnails') else None),
-                    channel=entry.get('uploader') or entry.get('channel') or platform.title()
+                    channel=entry.get('uploader') or entry.get('channel') or platform.title(),
+                    filesize=item_bytes,
+                    filesize_formatted=f"~{format_size_bytes(item_bytes)}" if item_bytes else None
                 )
             )
 
         playlist_title = info.get('title') or f"{platform.title()} Playlist"
         thumbnail = info.get('thumbnail') or (items[0].thumbnail if items else None)
         channel = info.get('uploader') or info.get('channel') or platform.title()
+
+        playlist_quality_sizes = {}
+        playlist_quality_sizes_formatted = {}
+        if total_playlist_bytes > 0:
+            playlist_quality_sizes = {
+                "best": total_playlist_bytes,
+                "1080p": total_playlist_bytes,
+                "720p": int(total_playlist_bytes * 0.65),
+                "480p": int(total_playlist_bytes * 0.35),
+                "audio_mp3": int(total_playlist_bytes * 0.15),
+            }
+            playlist_quality_sizes_formatted = {
+                k: f"~{format_size_bytes(v)}" for k, v in playlist_quality_sizes.items()
+            }
 
         return MediaInfoResponse(
             url=url,
@@ -246,7 +377,11 @@ def extract_media_info(
             platform=platform,
             item_count=len(items),
             items=items,
-            available_qualities=["best", "1080p", "720p", "480p", "audio_mp3"]
+            available_qualities=["best", "1080p", "720p", "480p", "audio_mp3"],
+            quality_sizes=playlist_quality_sizes,
+            quality_sizes_formatted=playlist_quality_sizes_formatted,
+            estimated_filesize=total_playlist_bytes or None,
+            filesize_formatted=f"~{format_size_bytes(total_playlist_bytes)}" if total_playlist_bytes else None
         )
     else:
         # Single video
@@ -261,6 +396,10 @@ def extract_media_info(
         thumbnail = info.get('thumbnail') or (info.get('thumbnails', [{}])[-1].get('url') if info.get('thumbnails') else None)
         channel = info.get('uploader') or info.get('channel') or info.get('uploader_id') or platform.title()
 
+        quality_sizes, quality_sizes_formatted = estimate_quality_sizes(info)
+        best_size = quality_sizes.get("best") or info.get('filesize') or info.get('filesize_approx')
+        best_formatted = quality_sizes_formatted.get("best") or (f"~{format_size_bytes(best_size)}" if best_size else None)
+
         single_item = VideoItem(
             id=video_id,
             title=title,
@@ -268,7 +407,9 @@ def extract_media_info(
             duration=duration,
             duration_string=format_seconds(duration),
             thumbnail=thumbnail,
-            channel=channel
+            channel=channel,
+            filesize=best_size,
+            filesize_formatted=best_formatted
         )
 
         available_qualities = ["best", "1080p", "720p", "480p", "audio_mp3"]
@@ -282,7 +423,11 @@ def extract_media_info(
             platform=platform,
             item_count=1,
             items=[single_item],
-            available_qualities=available_qualities
+            available_qualities=available_qualities,
+            quality_sizes=quality_sizes,
+            quality_sizes_formatted=quality_sizes_formatted,
+            estimated_filesize=best_size,
+            filesize_formatted=best_formatted
         )
 
 import os

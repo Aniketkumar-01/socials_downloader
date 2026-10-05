@@ -36,6 +36,8 @@ class VideoItem(BaseModel):
     duration_string: Optional[str] = None
     thumbnail: Optional[str] = None
     channel: Optional[str] = None
+    filesize: Optional[int] = None
+    filesize_formatted: Optional[str] = None
 
 class MediaInfoResponse(BaseModel):
     url: str
@@ -47,6 +49,10 @@ class MediaInfoResponse(BaseModel):
     item_count: int = 1
     items: List[VideoItem] = []
     available_qualities: List[str] = ["best", "1080p", "720p", "480p", "audio_mp3"]
+    quality_sizes: Dict[str, Optional[int]] = Field(default_factory=dict)
+    quality_sizes_formatted: Dict[str, str] = Field(default_factory=dict)
+    estimated_filesize: Optional[int] = None
+    filesize_formatted: Optional[str] = None
 
 class DownloadRequest(BaseModel):
     url: str
@@ -56,11 +62,15 @@ class DownloadRequest(BaseModel):
     save_to_local_folder: bool = True
     cookie_browser: Optional[CookieBrowserEnum] = Field(default=CookieBrowserEnum.none)
     auto_probe_browsers: bool = False
+    download_dir: Optional[str] = None
 
     @field_validator("url")
     @classmethod
     def check_url(cls, v: str) -> str:
         return validate_http_url(v)
+
+class SetDownloadDirRequest(BaseModel):
+    download_dir: str
 
 class ErrorDetail(BaseModel):
     code: str

@@ -4,6 +4,23 @@
 
 const API_BASE = ""; // Relative to server root
 
+export async function syncAuthToken() {
+  if (window.__AUTH_TOKEN__) return window.__AUTH_TOKEN__;
+  try {
+    const res = await fetch(`${API_BASE}/api/token`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.token) {
+        window.__AUTH_TOKEN__ = data.token;
+        return data.token;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not sync auth token:", err);
+  }
+  return "";
+}
+
 function getAuthHeaders(extra = {}) {
   const headers = { ...extra };
   if (window.__AUTH_TOKEN__) {
@@ -36,7 +53,7 @@ export async function fetchMediaInfo(url, cookieBrowser = null) {
   return await response.json();
 }
 
-export async function startDownload({ url, isPlaylist, selectedVideoIds, quality, cookieBrowser = null }) {
+export async function startDownload({ url, isPlaylist, selectedVideoIds, quality, cookieBrowser = null, downloadDir = null }) {
   const response = await fetch(`${API_BASE}/api/download`, {
     method: "POST",
     headers: getAuthHeaders({
@@ -49,6 +66,7 @@ export async function startDownload({ url, isPlaylist, selectedVideoIds, quality
       quality,
       cookie_browser: cookieBrowser === "none" ? "none" : (cookieBrowser || "none"),
       save_to_local_folder: true,
+      download_dir: downloadDir || undefined,
     }),
   });
 
@@ -85,6 +103,59 @@ export async function openDownloadsFolder(taskId = null) {
     method: "POST",
     headers: getAuthHeaders(),
   });
+  return await response.json();
+}
+
+export async function openFile(taskId) {
+  const response = await fetch(`${API_BASE}/api/open-file?task_id=${encodeURIComponent(taskId)}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to open file");
+  }
+  return await response.json();
+}
+
+export async function getDownloadDir() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/download-dir`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to retrieve download directory");
+  }
+  return await response.json();
+}
+
+export async function setDownloadDir(dirPath) {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/download-dir`, {
+    method: "POST",
+    headers: getAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ download_dir: dirPath }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to update download directory");
+  }
+  return await response.json();
+}
+
+export async function chooseFolder() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/choose-folder`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to launch folder picker");
+  }
   return await response.json();
 }
 

@@ -87,7 +87,6 @@
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
               </svg>
               <span>Paste</span>
-              <kbd class="hotkey-pill">Ctrl+V</kbd>
             </button>
 
             <button type="submit" id="btn-submit" class="btn-fetch-trigger">
@@ -149,7 +148,10 @@
             <!-- Controls row: quality selector and download action -->
             <div class="dispatch-panel">
               <div class="quality-dock">
-                <label for="quality-select" class="dock-label">Quality / Stream:</label>
+                <div class="dock-label-row">
+                  <label for="quality-select" class="dock-label">Quality / Stream:</label>
+                  <span id="quality-size-badge" class="quality-size-badge" style="display: none;">Est: --</span>
+                </div>
                 <div class="select-wrapper">
                   <select id="quality-select" class="console-select">
                     <option value="best" selected>Best Quality (MP4)</option>
@@ -158,6 +160,19 @@
                     <option value="480p">SD 480p (MP4)</option>
                     <option value="audio_mp3">Audio Only (MP3)</option>
                   </select>
+                </div>
+              </div>
+
+              <div class="folder-dock">
+                <label for="folder-path-input" class="dock-label">Save Location:</label>
+                <div class="folder-input-wrapper">
+                  <input type="text" id="folder-path-input" class="folder-path-input" placeholder="Downloads folder..." title="Type/paste path or click Browse to choose folder">
+                  <button type="button" id="btn-browse-folder" class="btn-browse-folder" title="Browse / Change destination folder">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>Browse</span>
+                  </button>
                 </div>
               </div>
 
@@ -196,7 +211,16 @@
             </div>
             <div id="progress-item-title" class="telemetry-stream-name">Initializing download...</div>
           </div>
-          <div id="progress-percentage" class="telemetry-gauge">0%</div>
+          <div class="telemetry-header-right">
+            <button type="button" id="btn-cancel-download" class="btn-cancel-download" title="Cancel this download" style="display: none;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              <span>Cancel</span>
+            </button>
+            <div id="progress-percentage" class="telemetry-gauge">0%</div>
+          </div>
         </div>
 
         <div class="gauge-track">
@@ -219,24 +243,40 @@
             </svg>
             <span id="progress-eta">ETA: --</span>
           </div>
+
+          <div class="readout-stat" id="readout-size-stat">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+            <span id="progress-size">Size: --</span>
+          </div>
         </div>
 
         <div id="progress-actions" class="destination-actions" style="display: none;">
-          <button type="button" id="btn-open-folder" class="btn-dest btn-dest-secondary">
+          <button type="button" id="btn-open-folder" class="btn-dest btn-dest-primary">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
             <span>Show in Windows Explorer</span>
           </button>
 
-          <a id="btn-browser-download" class="btn-dest btn-dest-primary" href="#" download>
+          <button type="button" id="btn-play-file" class="btn-dest btn-dest-secondary">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            <span>Save to Browser</span>
-          </a>
+            <span>Open / Play File</span>
+          </button>
+
+          <button type="button" id="btn-download-again" class="btn-dest btn-dest-ghost" title="Re-download this video">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span>Download Again</span>
+          </button>
         </div>
       </section>
     </main>

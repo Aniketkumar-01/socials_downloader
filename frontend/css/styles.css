@@ -663,12 +663,31 @@ body {
   gap: 0.4rem;
 }
 
+.dock-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .dock-label {
   font-size: 0.76rem;
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.quality-size-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  background: rgba(0, 240, 181, 0.1);
+  border: 1px solid rgba(0, 240, 181, 0.3);
+  color: var(--accent-primary);
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.02em;
 }
 
 .select-wrapper {
@@ -692,6 +711,69 @@ body {
 
 .console-select:focus {
   border-color: var(--accent-primary);
+}
+
+.folder-dock {
+  flex: 1.5;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.folder-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 0.28rem 0.35rem 0.28rem 0.75rem;
+  transition: border-color var(--duration-fast) ease;
+}
+
+.folder-input-wrapper:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.folder-path-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  outline: none;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.folder-path-input::placeholder {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+}
+
+.btn-browse-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.7rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--duration-fast) ease;
+}
+
+.btn-browse-folder:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
 }
 
 .btn-execute-download {
@@ -815,6 +897,25 @@ body {
   color: var(--text-tertiary);
 }
 
+.playlist-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.playlist-item-size {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.12rem 0.35rem;
+  background: rgba(0, 240, 181, 0.08);
+  border: 1px solid rgba(0, 240, 181, 0.2);
+  border-radius: var(--radius-xs);
+  color: var(--accent-primary);
+}
+
 /* ==========================================================================
    Telemetry Bay: Real-Time Download Monitoring
    ========================================================================== */
@@ -867,6 +968,13 @@ body {
   text-overflow: ellipsis;
 }
 
+.telemetry-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-shrink: 0;
+}
+
 .telemetry-gauge {
   font-family: var(--font-mono);
   font-size: 1.25rem;
@@ -882,6 +990,7 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   overflow: hidden;
+  margin: 0.65rem 0;
 }
 
 .gauge-fill {
@@ -895,8 +1004,9 @@ body {
 
 .telemetry-readout {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .readout-stat {
@@ -906,6 +1016,40 @@ body {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.btn-cancel-download {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.65rem;
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  border-radius: var(--radius-sm);
+  color: #ff6b81;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 0;
+  transition: all var(--duration-fast) ease;
+}
+
+.btn-cancel-download:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.22);
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #ff4757;
+  transform: translateY(-1px);
+}
+
+.btn-cancel-download:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-cancel-download:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .destination-actions {
@@ -952,6 +1096,20 @@ body {
 .btn-dest-secondary:hover {
   background: var(--bg-surface-hover);
   border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.btn-dest-ghost {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.btn-dest-ghost:hover {
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
