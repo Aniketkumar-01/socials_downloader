@@ -95,6 +95,9 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+icon_path = root_dir / 'assets' / 'app.ico'
+icon_file = str(icon_path) if icon_path.exists() else None
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -115,4 +118,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=icon_file,
 )

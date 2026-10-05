@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build OmniDownloader.exe
+    name: Build OmniDownloader Windows Installer & Standalone EXE
     runs-on: windows-latest
 
     steps:
@@ -28,7 +28,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress
+
+      - name: Generate Application Icon
+        run: |
+          python create_icon.py
 
       - name: Build Standalone Executable
         run: |
@@ -44,23 +53,44 @@ jobs:
           $size = (Get-Item "dist/OmniDownloader.exe").Length / 1MB
           Write-Host "OmniDownloader.exe successfully generated ($([math]::Round($size, 2)) MB)"
 
-      - name: Create GitHub Release and Upload Asset
+      - name: Build Inno Setup Windows Installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = (Get-Command iscc.exe).Source
+          }
+          Write-Host "Using Inno Setup Compiler at: $iscc"
+          & $iscc installer.iss
+          if (-not (Test-Path "dist/OmniDownloader-Setup.exe")) {
+            Write-Error "dist/OmniDownloader-Setup.exe was not created!"
+            exit 1
+          }
+          $setupSize = (Get-Item "dist/OmniDownloader-Setup.exe").Length / 1MB
+          Write-Host "OmniDownloader-Setup.exe successfully generated ($([math]::Round($setupSize, 2)) MB)"
+
+      - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: "OmniDownloader Release ${{ github.ref_name }}"
           tag_name: ${{ github.ref_name }}
           files: |
+            dist/OmniDownloader-Setup.exe
             dist/OmniDownloader.exe
           body: |
             ## 🚀 OmniDownloader ${{ github.ref_name }}
 
-            ### 📦 Quick Start (Windows)
-            1. Download **`OmniDownloader.exe`** attached below.
-            2. Double-click **`OmniDownloader.exe`** to start. (This is a standalone portable application — no installation wizard required!)
-            3. *Note on Windows SmartScreen:* If Windows displays *"Windows protected your PC"*, click **"More info"** and then **"Run anyway"** (standard for newly published open-source executables).
-            4. OmniDownloader will launch in its standalone native desktop application window.
-            5. Paste any video or playlist link (YouTube, Instagram, TikTok, etc.) and download at full speed!
+            ### 📦 Downloads for Windows:
+            - **`OmniDownloader-Setup.exe` (Recommended):** Standard Windows 1-click Installer.
+              - Installs cleanly to your user profile (no Administrator/UAC prompt required).
+              - Registers in the **Windows Start Menu** and **Windows Search bar** (press `Win` + type `"Omni"`).
+              - Creates a desktop shortcut with the official app icon.
+              - Fully registered in **Windows Settings > Installed apps** with clean uninstallation.
+            - **`OmniDownloader.exe` (Portable):** Standalone single-file executable. Runs directly without installation.
+
+            ### 💡 Note on Windows SmartScreen:
+            If Windows displays *"Windows protected your PC"* when opening a newly released app, click **"More info"** and then **"Run anyway"** (standard for newly compiled open-source releases).
 
             ### ⚠️ Prerequisites for High-Res (1080p/4K) and MP3:
             - High-definition streams require **FFmpeg**.

@@ -23,19 +23,23 @@ A modern, fast, local-first web application to download videos, Reels, Shorts, a
 
 ---
 
-## 📦 Standalone Executable (No Python Required!)
+## 📦 Windows App & Installer (No Python Required!)
 
-Users can run OmniDownloader without installing Python or dependencies:
+Users can run OmniDownloader on Windows without installing Python or dependencies:
 
-1. Go to the [**GitHub Releases**](https://github.com/Aniketkumar-01/socials_downloader/releases) page.
-2. Download **`OmniDownloader.exe`**.
-3. Double-click **`OmniDownloader.exe`**.
-4. The app will launch in your default web browser at `http://127.0.0.1:8000`.
-5. Paste any video or playlist link and start downloading!
+1. Head to the official [**GitHub Releases**](https://github.com/Aniketkumar-01/socials_downloader/releases) page.
+2. Download your preferred version:
+   - **`OmniDownloader-Setup.exe` (Recommended):** Standard Windows installer.
+     - Adds **OmniDownloader** to your **Start Menu** and makes it searchable via Windows Search (<kbd>Win</kbd> + type `"Omni"`).
+     - Places an icon on your **Desktop**.
+     - Installs cleanly into your user profile (no Administrator prompt needed).
+     - Fully managed via **Windows Settings > Installed apps**.
+   - **`OmniDownloader.exe` (Portable):** Single standalone file. Requires no installation—double-click and use immediately.
+3. Launch the app, paste any video or playlist link, and start downloading!
 
 > **⚠️ Prerequisites for 1080p, 4K & MP3**:
 > YouTube and major platforms split high-resolution streams into separate video and audio channels. Merging them requires **FFmpeg**.
-> - You can install FFmpeg with **1-click** right inside the app interface.
+> - You can install FFmpeg with **1-click** directly inside the app settings.
 > - Or run this command in terminal/PowerShell:
 >   ```powershell
 >   winget install Gyan.FFmpeg
@@ -43,11 +47,13 @@ Users can run OmniDownloader without installing Python or dependencies:
 
 ---
 
-## 🛠️ Building the `.exe` Locally
+## 🛠️ Building the Installer Locally
 
-To build your own standalone Windows executable from source:
-1. Double-click **`build_exe.bat`** in this folder (or run `pyinstaller --clean omnidownloader.spec`).
-2. The compiled binary will be placed at **`dist\OmniDownloader.exe`**.
+To build your own installer or standalone executable from source:
+1. Double-click **`build_installer.bat`** (or `build_exe.bat`).
+2. The compiled outputs will be generated in `dist\`:
+   - `dist\OmniDownloader-Setup.exe`
+   - `dist\OmniDownloader.exe`
 
 ---
 

@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="OmniDownloader Web App",
     description="Hardened universal video and playlist downloader with real-time SSE progress",
-    version="1.1.2",
+    version="1.2.0",
     lifespan=lifespan
 )
 
