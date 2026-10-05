@@ -293,6 +293,13 @@ async def download_file_browser(task_id: str):
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found on server disk")
 
+    # Strict path traversal validation
+    allowed_dirs = [DOWNLOADS_DIR.resolve(), get_default_download_dir().resolve()]
+    if hasattr(task, "download_dir") and task.download_dir:
+        allowed_dirs.append(Path(task.download_dir).resolve())
+    if not any(file_path == d or file_path.is_relative_to(d) for d in allowed_dirs if d.exists()):
+        raise HTTPException(status_code=403, detail="Access denied: path is outside downloads directory.")
+
     return FileResponse(
         path=str(file_path),
         filename=file_path.name,
@@ -306,27 +313,49 @@ async def open_downloads_folder(task_id: Optional[str] = None):
     """
     try:
         current_dir = get_default_download_dir().resolve()
-        target_path = current_dir
+        target_path = None
 
         if task_id:
             task = task_manager.get_task(task_id)
-            if task and task.output_files:
-                for f in task.output_files:
-                    cand = Path(f).resolve()
-                    if cand.exists():
-                        target_path = cand
-                        break
-                    elif cand.parent.exists():
-                        target_path = cand.parent
-                        break
+            if task:
+                # 1. Output files from task
+                if task.output_files:
+                    for f in task.output_files:
+                        cand = Path(f).resolve()
+                        if cand.exists() and cand.is_file():
+                            target_path = cand
+                            current_dir = cand.parent
+                            break
+                        elif cand.parent.exists():
+                            target_path = cand.parent
+                            current_dir = cand.parent
+                            break
 
-            # Fallback if target_path is still directory: look for recent media file
-            if target_path == current_dir and current_dir.exists():
-                valid_exts = ('.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.wav', '.opus', '.flac')
-                candidates = [f for f in current_dir.iterdir() if f.is_file() and f.suffix.lower() in valid_exts]
-                if candidates:
-                    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-                    target_path = candidates[0]
+                # Path traversal check on requested task path
+                if target_path:
+                    allowed_dirs = [DOWNLOADS_DIR.resolve(), get_default_download_dir().resolve()]
+                    if hasattr(task, "download_dir") and task.download_dir:
+                        allowed_dirs.append(Path(task.download_dir).resolve())
+                    if not any(target_path == d or target_path.is_relative_to(d) for d in allowed_dirs if d.exists()):
+                        raise HTTPException(status_code=403, detail="Access denied: path is outside downloads directory.")
+
+                # 2. Task recorded download_dir
+                if not target_path and hasattr(task, "download_dir") and task.download_dir:
+                    t_dir = Path(task.download_dir).resolve()
+                    if t_dir.exists():
+                        target_path = t_dir
+                        current_dir = t_dir
+
+        if not target_path:
+            target_path = current_dir
+
+        # 3. If target_path is a directory, look for recently downloaded media in it
+        if target_path.is_dir() and target_path.exists():
+            valid_exts = ('.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.wav', '.opus', '.flac')
+            candidates = [f for f in target_path.iterdir() if f.is_file() and f.suffix.lower() in valid_exts]
+            if candidates:
+                candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                target_path = candidates[0]
 
         if not target_path.exists():
             target_path = current_dir
@@ -338,9 +367,10 @@ async def open_downloads_folder(task_id: Optional[str] = None):
         if os.name == 'nt':
             if target_path.is_file():
                 # Windows Explorer syntax: explorer.exe /select,"C:\path\file.mp4"
-                subprocess.Popen(["explorer.exe", f"/select,{norm_path}"], creationflags=NO_WINDOW_FLAG)
+                # Single formatted string prevents Python list2cmdline from quoting "/select," which breaks Explorer switch parsing
+                subprocess.Popen(f'explorer.exe /select,"{norm_path}"', creationflags=NO_WINDOW_FLAG)
             else:
-                subprocess.Popen(["explorer.exe", norm_path], creationflags=NO_WINDOW_FLAG)
+                subprocess.Popen(f'explorer.exe "{norm_path}"', creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
             if target_path.is_file():
                 subprocess.Popen(["open", "-R", norm_path])
@@ -446,7 +476,8 @@ async def update_download_directory(request: SetDownloadDirRequest):
 async def trigger_folder_picker():
     """
     Opens native Windows folder selection dialog and returns the chosen folder.
-    Uses multi-method fallback: Python Tkinter -> PowerShell STA FolderBrowserDialog -> Shell.Application.
+    Guarantees exactly ONE dialog is shown; closing or cancelling immediately returns
+    status='cancelled' without falling back to secondary or tertiary popups.
     """
     curr = str(get_default_download_dir())
     if os.name != 'nt':
@@ -455,7 +486,7 @@ async def trigger_folder_picker():
     loop = asyncio.get_running_loop()
 
     # Method 1: Python Tkinter in threadpool executor (no shell spawn needed)
-    def _tk_ask() -> Optional[str]:
+    def _tk_ask() -> tuple[str, Optional[str]]:
         try:
             import tkinter as tk
             from tkinter import filedialog
@@ -468,21 +499,27 @@ async def trigger_folder_picker():
                 initialdir=curr
             )
             root.destroy()
-            return str(res).strip() if res else None
+            if res:
+                return ("OK", str(res).strip())
+            else:
+                return ("CANCEL", None)
         except Exception as e:
             logger.debug(f"Tkinter folder picker not available: {e}")
-            return None
+            return ("ERROR", None)
 
     try:
-        tk_res = await loop.run_in_executor(None, _tk_ask)
-        if tk_res and Path(tk_res).is_dir():
+        status, tk_res = await loop.run_in_executor(None, _tk_ask)
+        if status == "OK" and tk_res and Path(tk_res).is_dir():
             saved = set_download_dir(Path(tk_res))
             return {"status": "success", "download_dir": str(saved), "path": str(saved)}
+        elif status == "CANCEL":
+            # User explicitly closed or cancelled the dialog. Never open secondary popups!
+            return {"status": "cancelled", "download_dir": curr, "path": curr}
     except Exception as e:
         logger.debug(f"Tkinter method error: {e}")
 
-    # Method 2: Windows PowerShell with FolderBrowserDialog & Shell.Application fallback via -EncodedCommand
-    # Uses UTF-16LE Base64 to bypass all command line parsing / quote escaping issues
+    # Method 2: Fallback ONLY if Tkinter itself was missing/failed to load
+    # Single dialog that exits immediately whether OK or Cancelled.
     ps_script = f"""
 Add-Type -AssemblyName System.Windows.Forms
 $f = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -492,14 +529,8 @@ $f.SelectedPath = '{curr}'
 $res = $f.ShowDialog()
 if ($res -eq [System.Windows.Forms.DialogResult]::OK -and $f.SelectedPath) {{
     [Console]::Out.Write($f.SelectedPath)
-    exit 0
 }}
-$sh = New-Object -ComObject Shell.Application
-$b = $sh.BrowseForFolder(0, 'Select download destination folder', 0x00000040, '{curr}')
-if ($b -and $b.Self.Path) {{
-    [Console]::Out.Write($b.Self.Path)
-    exit 0
-}}
+exit 0
 """
     try:
         import base64
@@ -515,11 +546,7 @@ if ($b -and $b.Self.Path) {{
         if chosen and Path(chosen).is_dir():
             saved = set_download_dir(Path(chosen))
             return {"status": "success", "download_dir": str(saved), "path": str(saved)}
-        if proc.returncode == 0 and not chosen:
-            return {"status": "cancelled", "download_dir": curr, "path": curr}
-        err_msg = stderr.decode("utf-8", errors="replace").strip()
-        if err_msg:
-            logger.warning(f"PowerShell folder picker stderr: {err_msg}")
+        return {"status": "cancelled", "download_dir": curr, "path": curr}
     except Exception as e:
         logger.warning(f"PowerShell folder picker error: {e}")
 

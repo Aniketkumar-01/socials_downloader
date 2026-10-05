@@ -66,6 +66,7 @@ class TaskManager:
 
     def create_task(self, request: DownloadRequest) -> str:
         task_id = str(uuid.uuid4())[:8]
+        effective_dir = request.download_dir.strip().strip('"\'') if request.download_dir else str(get_default_download_dir())
         status = DownloadTaskStatus(
             task_id=task_id,
             status="queued",
@@ -73,7 +74,8 @@ class TaskManager:
             current_item="Queued for download...",
             total_items=1,
             completed_items=0,
-            output_files=[]
+            output_files=[],
+            download_dir=effective_dir
         )
         self.tasks[task_id] = status
         self.subscribers[task_id] = []

@@ -82,20 +82,6 @@
             <p id="error-hint-text" class="hint-text"></p>
           </div>
 
-          <!-- Quick Action Buttons for Platform Verification / Cookies -->
-          <div id="bot-auth-helpers" class="bot-auth-helpers" style="display: none;">
-            <div class="bot-helper-label">Authenticate locally on your PC (No passwords required):</div>
-            <div class="bot-helper-buttons">
-              <button type="button" class="btn-quick-browser" data-browser="edge">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Use Microsoft Edge Session
-              </button>
-              <button type="button" class="btn-quick-browser" data-browser="chrome">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Use Google Chrome Session
-              </button>
-            </div>
-          </div>
 
           <!-- Collapsible technical details for diagnostics/logging -->
           <details id="error-tech-details" class="error-tech-details" style="display: none;">
@@ -221,30 +207,9 @@
             </div>
           </div>
 
-          <!-- Authentication & 100% Local PC Privacy Strip -->
-          <div class="deck-sub-row">
-            <div class="cookie-auth-dock">
-              <label for="cookie-select" class="cookie-label">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"></path>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <circle cx="16" cy="15.5" r="1.5"></circle>
-                  <circle cx="12" cy="12" r="1.5"></circle>
-                  <circle cx="11" cy="17" r="1.5"></circle>
-                  <circle cx="7" cy="13" r="1.5"></circle>
-                </svg>
-                <span>Cookies / Auth:</span>
-              </label>
-              <select id="cookie-select" class="cookie-select">
-                <option value="none" selected>No Cookies (Public media)</option>
-                <option value="edge">Microsoft Edge (Local Session)</option>
-                <option value="chrome">Google Chrome (Local Session)</option>
-                <option value="firefox">Firefox (Local Session)</option>
-                <option value="brave">Brave (Local Session)</option>
-              </select>
-            </div>
-
-            <div class="local-privacy-badge" title="OmniDownloader executes 100% locally on your computer. Your cookies, sessions, and downloads never leave your PC.">
+          <!-- 100% Local PC Privacy Strip -->
+          <div class="deck-sub-row deck-sub-row-privacy">
+            <div class="local-privacy-badge" title="OmniDownloader executes 100% locally on your computer. Your sessions and downloads never leave your PC.">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -391,11 +356,11 @@
         </div>
 
         <div id="progress-actions" class="destination-actions" style="display: none;">
-          <button type="button" id="btn-open-folder" class="btn-dest btn-dest-primary">
+          <button type="button" id="btn-open-folder" class="btn-dest btn-dest-primary" title="Open the download folder and reveal the saved video">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
-            <span>Show in Windows Explorer</span>
+            <span>Show in Folder</span>
           </button>
 
           <button type="button" id="btn-play-file" class="btn-dest btn-dest-secondary">

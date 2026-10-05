@@ -94,4 +94,5 @@ class DownloadTaskStatus(BaseModel):
     output_files: List[str] = []
     error_message: Optional[str] = None
     error_detail: Optional[ErrorDetail] = None
+    download_dir: Optional[str] = None
 

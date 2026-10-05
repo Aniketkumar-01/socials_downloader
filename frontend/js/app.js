@@ -112,19 +112,19 @@ function formatLaymanError(errOrMsg) {
     code = "BOT_CHECK";
     title = "YouTube Human Verification Required";
     laymanMessage = "YouTube is asking to confirm you are a real person and not an automated program.";
-    if (!hint) hint = "Select your signed-in browser (Microsoft Edge or Google Chrome) below to verify locally on your computer with your existing session.";
+    if (!hint) hint = "This video requires platform authentication. Verify the URL is publicly accessible or playable in your web browser.";
   } else if (code === "PRIVATE_VIDEO" || lower.includes("private video") || lower.includes("this video is private")) {
     source = "platform";
     code = "PRIVATE_VIDEO";
     title = "Private Video on YouTube";
     laymanMessage = "The creator has set this video to private. It is only accessible to invited viewers.";
-    if (!hint) hint = "If you have permission to view this video, select your signed-in browser from the Cookies dropdown.";
+    if (!hint) hint = "If you have permission to view this video, verify you are logged in to YouTube in your browser.";
   } else if (code === "AGE_RESTRICTED" || lower.includes("age-restricted") || lower.includes("confirm your age") || lower.includes("sign in to view")) {
     source = "platform";
     code = "AGE_RESTRICTED";
     title = "Age-Restricted Video";
     laymanMessage = "YouTube requires a signed-in account over 18 to view this content.";
-    if (!hint) hint = "Select your logged-in browser (Edge or Chrome) from the Cookies dropdown to authenticate locally.";
+    if (!hint) hint = "This video is age-restricted. Please ensure the link is playable in your default web browser.";
   } else if (code === "GEO_BLOCKED" || lower.includes("available in your country") || lower.includes("geo-restricted") || lower.includes("blocked it in your country")) {
     source = "platform";
     code = "GEO_BLOCKED";
@@ -136,7 +136,7 @@ function formatLaymanError(errOrMsg) {
     code = "MEMBERS_ONLY";
     title = "Channel Members Only";
     laymanMessage = "This video is exclusively available to paid members of the YouTube channel.";
-    if (!hint) hint = "If you have an active channel membership, select your signed-in browser from the Cookies dropdown.";
+    if (!hint) hint = "This video is for channel members only. Please ensure your account has active membership access.";
   } else if (code === "LIVE_STREAM" || lower.includes("is a live stream") || lower.includes("live event will begin") || lower.includes("premieres in")) {
     source = "platform";
     code = "LIVE_STREAM";
@@ -234,16 +234,7 @@ function showError(errOrMsg) {
     }
   }
 
-  const botHelpers = document.getElementById("bot-auth-helpers");
-  if (botHelpers) {
-    const isBot = info.code === "BOT_CHECK" || 
-                  info.code === "AGE_RESTRICTED" || 
-                  info.code === "PRIVATE_VIDEO" || 
-                  info.code === "MEMBERS_ONLY" || 
-                  info.message.toLowerCase().includes("bot") || 
-                  info.message.toLowerCase().includes("verification");
-    botHelpers.style.display = isBot ? "block" : "none";
-  }
+
 
   if (errorTechDetails && errorRawText) {
     if (info.raw && info.raw !== info.message) {
@@ -279,26 +270,14 @@ function clearError() {
   if (errorMessage) errorMessage.textContent = "";
   if (errorHintBox) errorHintBox.style.display = "none";
   if (errorTechDetails) errorTechDetails.style.display = "none";
-  const botHelpers = document.getElementById("bot-auth-helpers");
-  if (botHelpers) botHelpers.style.display = "none";
+
 }
 
 if (btnDismissError) {
   btnDismissError.addEventListener("click", clearError);
 }
 
-// Quick Local Browser Auth Button Handlers
-document.querySelectorAll(".btn-quick-browser").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const browser = btn.dataset.browser;
-    if (cookieSelect) {
-      cookieSelect.value = browser;
-      showToast(`Selected ${browser === 'edge' ? 'Microsoft Edge' : 'Google Chrome'} session. Re-trying on PC...`, "info");
-      clearError();
-      urlForm.dispatchEvent(new Event("submit"));
-    }
-  });
-});
+
 
 // Helper: Manage Download Button State
 function setDownloadButtonState(state, customText = null) {
@@ -336,7 +315,7 @@ function setDownloadButtonState(state, customText = null) {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
         </svg>
-        <span id="btn-download-text">Show in Windows Explorer</span>
+        <span id="btn-download-text">Show in Folder</span>
       `;
     } else {
       btnDownload.innerHTML = `
@@ -873,15 +852,15 @@ if (btnCancelDownload) {
   });
 }
 
-// "Show in Windows Explorer" action
+// "Show in Folder" action
 if (btnOpenFolder) {
   btnOpenFolder.addEventListener("click", async () => {
     try {
-      showToast("Opening folder in Windows Explorer...", "info");
+      showToast("Opening folder...", "info");
       await openDownloadsFolder(currentTaskId);
     } catch (err) {
       console.error("Failed to open folder:", err);
-      showError("Could not reveal file in Windows Explorer.");
+      showError("Could not reveal file in folder.");
     }
   });
 }

@@ -844,46 +844,6 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.cookie-auth-dock {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.cookie-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.cookie-select {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.8rem;
-  padding: 0.3rem 0.65rem;
-  outline: none;
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-}
-
-.cookie-select:focus,
-.cookie-select:hover {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 10px rgba(0, 240, 181, 0.15);
-}
-
-.cookie-select option {
-  background: #11141c;
-  color: #fff;
-}
 
 .local-privacy-badge {
   display: inline-flex;
