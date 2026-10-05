@@ -35,13 +35,13 @@ echo Pushing code to main branch...
 git push -u origin main
 
 echo.
-set /p CREATE_RELEASE="Do you want to create and push a v1.0.0 release tag to build OmniDownloader.exe on GitHub? (y/n): "
+set /p CREATE_RELEASE="Do you want to create and push a v1.1.0 release tag to build OmniDownloader.exe on GitHub? (y/n): "
 if /i "%CREATE_RELEASE%"=="y" (
     echo.
-    echo Tagging release v1.0.0...
-    git tag -a v1.0.0 -m "OmniDownloader v1.0.0 Release" 2>nul
+    echo Tagging release v1.1.0...
+    git tag -a v1.1.0 -m "OmniDownloader v1.1.0 Release - Native App Shell & Bot Bypass" 2>nul
     echo Pushing tag to GitHub to trigger automated .exe build...
-    git push origin v1.0.0 --force
+    git push origin v1.1.0 --force
     echo.
     echo GitHub Actions is now compiling OmniDownloader.exe!
     echo Visit: https://github.com/Aniketkumar-01/socials_downloader/actions
