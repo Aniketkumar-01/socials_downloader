@@ -5,7 +5,7 @@
 ; =====================================================================
 
 #define MyAppName "OmniDownloader"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.2.3"
 #define MyAppPublisher "Aniket Kumar"
 #define MyAppURL "https://github.com/Aniketkumar-01/socials_downloader"
 #define MyAppExeName "OmniDownloader.exe"
@@ -56,7 +56,6 @@ Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "DOCUMENTATION.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "FILE_STRUCTURE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 ; Start Menu shortcut - Indexed by Windows Search (Win + "Omni")

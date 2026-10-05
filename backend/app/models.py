@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Any, Union
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
 
@@ -73,11 +73,6 @@ class DownloadRequest(BaseModel):
 
 class SetDownloadDirRequest(BaseModel):
     download_dir: str = Field(..., min_length=1, max_length=1000)
-
-class SettingsModel(BaseModel):
-    download_dir: Optional[str] = Field(default=None, max_length=1000)
-    allow_cookie_probing: Optional[bool] = None
-    allow_browser_cookies: Optional[bool] = None
 
 class ErrorDetail(BaseModel):
     code: str

@@ -12,7 +12,9 @@
   <meta name="twitter:title" content="OmniDownloader - Universal Video &amp; Playlist Downloader">
   <meta name="twitter:description" content="Fast, local-first media downloader for YouTube, Instagram, TikTok, X (Twitter), Bilibili, and more with real-time SSE progress.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300d2ff' stroke-width='2'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>">
-  <meta name="omni-token" content="{{OMNI_TOKEN}}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -36,13 +38,6 @@
       </div>
 
       <div class="header-utilities">
-        <button type="button" id="btn-open-settings" class="btn-header-tool" title="Application Settings">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-          <span>Settings</span>
-        </button>
         <div class="server-node active" id="server-status-indicator" title="Connected to local FastAPI backend">
           <span class="pulse-dot"></span>
           <span class="node-label">Server Ready</span>
@@ -96,6 +91,57 @@
         </div>
       </div>
 
+      <!-- Prerequisites & FFmpeg Advisory Banner -->
+      <section id="prerequisites-banner" class="prereq-banner" role="status" style="display: none;">
+        <div class="prereq-content">
+          <div class="prereq-triangle-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </div>
+          <div class="prereq-info">
+            <div class="prereq-title-row">
+              <span class="prereq-title">Prerequisites Required: FFmpeg Setup</span>
+              <span class="prereq-badge">1080p / 4K / MP3</span>
+            </div>
+            <p id="prereq-desc" class="prereq-desc">
+              High-resolution video stream merging and MP3 conversion require FFmpeg. Choose an installation option below:
+            </p>
+          </div>
+        </div>
+
+        <div class="prereq-actions">
+          <button type="button" id="btn-install-ffmpeg" class="btn-prereq-action btn-prereq-primary" title="Automated 1-click download & installation of FFmpeg">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="8 17 12 21 16 17"></polyline>
+              <line x1="12" y1="12" x2="12" y2="21"></line>
+              <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
+            </svg>
+            <span id="btn-install-ffmpeg-text">1-Click Install FFmpeg</span>
+          </button>
+
+          <button type="button" id="btn-copy-winget" class="btn-prereq-action btn-prereq-chip" title="Click to copy terminal command to clipboard">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+            <span class="prereq-cmd-text">winget install Gyan.FFmpeg</span>
+            <svg class="prereq-copy-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+
+          <button type="button" id="btn-dismiss-prereq" class="btn-prereq-close" title="Dismiss notice">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </section>
 
       <!-- Command Deck: Primary Input Area -->
       <section class="command-deck" aria-label="Media Ingestion">
@@ -340,72 +386,59 @@
     <div id="toast-container" class="toast-hub" aria-live="polite"></div>
   </div>
 
-  <!-- Settings & Privacy Configuration Modal -->
-  <div id="settings-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+  <!-- System Command Permission & Choice Modal -->
+  <div id="cmd-permission-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="cmd-modal-title">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-icon-badge" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
           </svg>
         </div>
         <div class="modal-header-text">
-          <h3 id="settings-modal-title" class="modal-title">Settings &amp; Preferences</h3>
-          <p class="modal-subtitle">OmniDownloader runs 100% locally on your computer</p>
+          <h3 id="cmd-modal-title" class="modal-title">System Setup Permission</h3>
+          <p class="modal-subtitle">OmniDownloader runs 100% on your PC without external websites</p>
         </div>
-        <button type="button" id="btn-close-settings-modal" class="btn-modal-close" aria-label="Close settings">&times;</button>
+        <button type="button" id="btn-close-cmd-modal" class="btn-modal-close" aria-label="Close modal">&times;</button>
       </div>
 
       <div class="modal-body">
-        <div class="setting-item">
-          <label for="settings-download-dir" class="setting-label">Default Download Directory</label>
-          <div class="folder-input-wrapper">
-            <input type="text" id="settings-download-dir" class="folder-path-input" placeholder="Downloads folder...">
-            <button type="button" id="btn-settings-browse" class="btn-browse-folder">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
-              <span>Browse</span>
+        <div class="modal-callout">
+          <strong>Why is this setup needed?</strong>
+          <p>High-resolution video streams (1080p, 4K) and MP3 audio are processed locally on your PC using FFmpeg. FFmpeg merges video and audio streams into single, high-quality playable MP4 files.</p>
+        </div>
+
+        <div class="modal-command-box">
+          <span class="cmd-label">Terminal command to be executed:</span>
+          <div class="cmd-snippet-row">
+            <code id="cmd-to-run">winget install Gyan.FFmpeg</code>
+            <button type="button" id="btn-modal-copy-cmd" class="btn-chip-copy" title="Copy command to clipboard">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Copy</span>
             </button>
           </div>
         </div>
 
-        <div class="setting-item">
-          <div class="setting-toggle-row">
-            <div class="setting-text">
-              <span class="setting-label">Allow Local Browser Session Probing (Opt-In)</span>
-              <p class="setting-desc">
-                When enabled, OmniDownloader may query local browser sessions (Microsoft Edge, Google Chrome, Firefox, Brave) in read-only mode to pass platform bot verification challenges when anonymous extraction is blocked. Default is OFF.
-              </p>
-            </div>
-            <label class="switch-control">
-              <input type="checkbox" id="toggle-cookie-probing">
-              <span class="slider"></span>
-            </label>
-          </div>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-status-card">
-            <div class="status-row">
-              <span class="status-key">Media Engine:</span>
-              <span class="status-val" id="status-engine-val">yt-dlp (Embedded)</span>
-            </div>
-            <div class="status-row">
-              <span class="status-key">FFmpeg Transcoder:</span>
-              <span class="status-val text-success" id="status-ffmpeg-val">Bundled &amp; Ready</span>
-            </div>
-          </div>
-        </div>
+        <p class="modal-notice">
+          We never execute terminal commands or open browser websites without your permission. You can choose to let the app install FFmpeg in the background, or do it yourself in your own terminal.
+        </p>
       </div>
 
       <div class="modal-footer">
-        <button type="button" id="btn-save-settings" class="btn-modal-primary">
+        <button type="button" id="btn-diy-cmd" class="btn-modal-secondary" title="Copy command and run it yourself">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          <span>I'll Do It Myself</span>
+        </button>
+
+        <button type="button" id="btn-grant-permission-cmd" class="btn-modal-primary">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
-          <span>Save Changes</span>
+          <span id="btn-grant-permission-text">Grant Permission &amp; Install</span>
         </button>
       </div>
     </div>

@@ -109,9 +109,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    # Disable UPX compression to avoid antivirus false positives (Windows Defender / heuristics).
-    # Tradeoff: standalone binary is ~15-20% larger, but execution reliability and AV trust are maximized.
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # Windowed standalone desktop app - no black CMD window

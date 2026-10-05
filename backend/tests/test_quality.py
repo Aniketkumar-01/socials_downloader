@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import pytest
 from app.downloader import build_ydl_download_options, get_ffmpeg_path, get_base_ydl_opts
 from app.config import DOWNLOADS_DIR
 

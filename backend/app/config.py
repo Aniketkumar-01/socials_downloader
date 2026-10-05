@@ -164,48 +164,6 @@ def set_download_dir(path: Path) -> Path:
         pass
     return resolved
 
-def is_cookie_probing_allowed() -> bool:
-    """Returns True only if user has explicitly opted into local browser cookie probing (default False)."""
-    if SETTINGS_FILE.exists():
-        try:
-            data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-            return bool(data.get("allow_cookie_probing", data.get("allow_browser_cookies", False)))
-        except Exception:
-            pass
-    return False
-
-def set_cookie_probing_allowed(allowed: bool) -> bool:
-    """Sets and persists user opt-in for local browser cookie probing."""
-    settings = {}
-    if SETTINGS_FILE.exists():
-        try:
-            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            settings = {}
-    val = bool(allowed)
-    settings["allow_cookie_probing"] = val
-    settings["allow_browser_cookies"] = val
-    try:
-        SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-    except Exception:
-        pass
-    return val
-
-# One-time cleanup of obsolete root scripts if running in source repository
-if not getattr(sys, 'frozen', False):
-    for obs in [
-        "push.bat", "push.ps1", "push_to_github.bat", "publish_release.bat",
-        "publish_release.ps1", "OmniDownloader.bat", "OmniDownloader.vbs",
-        "create_desktop_shortcut.vbs", "start.bat", "start.ps1", "build_exe.bat",
-        "build_installer.bat", "create_icon.py", "cookies.txt.example", "FILE_STRUCTURE.md"
-    ]:
-        obs_path = BASE_DIR / obs
-        if obs_path.exists():
-            try:
-                obs_path.unlink()
-            except Exception:
-                pass
-
 # Engine directory for isolated yt-dlp runtime updates
 ENGINE_DIR = USER_DATA_DIR / "engine"
 ENGINE_DIR.mkdir(parents=True, exist_ok=True)
@@ -215,9 +173,9 @@ if str(ENGINE_DIR) not in sys.path:
 # Persistent Cookie Jar in User Data directory
 COOKIES_FILE = USER_DATA_DIR / "cookies.txt"
 
-# Settings (Localhost binding only, dynamic ephemeral port by default)
+# Settings (Localhost binding only)
 SERVER_HOST = "127.0.0.1"
-SERVER_PORT = int(os.getenv("PORT", "0"))
+SERVER_PORT = int(os.getenv("PORT", "8000"))
 MAX_DOWNLOAD_WORKERS = int(os.getenv("MAX_WORKERS", "2"))
 MAX_COOKIE_SIZE = 2 * 1024 * 1024  # 2 MB limit
 

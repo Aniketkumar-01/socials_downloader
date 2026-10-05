@@ -10,53 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  lint:
-    name: Code Quality & Lint Gate (Ruff)
-    runs-on: windows-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install Lint Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
-
-      - name: Run Ruff Lint Checks
-        run: |
-          ruff check .
-
-  test:
-    name: Unit & Security Hardening Test Suite (Pytest)
-    runs-on: windows-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest httpx -r backend/requirements.txt
-
-      - name: Run Pytest Suite
-        run: |
-          pytest backend/tests/ -v
-
   build:
     name: Build OmniDownloader Windows Installer & Standalone EXE
-    needs: [lint, test]
     runs-on: windows-latest
 
     steps:
@@ -69,20 +24,20 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Build Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install pyinstaller
-
-      - name: Ensure Offline Fonts Bundled
-        run: |
-          python tools/download_fonts.py
+          pip install pyinstaller pillow
 
       - name: Install Inno Setup
         shell: pwsh
         run: |
           choco install innosetup --no-progress
+
+      - name: Generate Application Icon
+        run: |
+          python create_icon.py
 
       - name: Build Standalone Executable
         run: |
@@ -126,7 +81,7 @@ jobs:
           body: |
             # ⚡ OmniDownloader ${{ github.ref_name }}
 
-            A fast, local-first universal media and playlist downloader for Windows (YouTube, Instagram, TikTok, X/Twitter, Bilibili, and 1,000+ sites) with real-time SSE progress.
+            A fast, local-first universal media and playlist downloader for Windows (YouTube, Instagram, TikTok, X/Twitter, Bilibili, and 1,000+ sites) at full quality with real-time SSE progress.
 
             ---
 
@@ -139,11 +94,10 @@ jobs:
             ---
 
             ### ✨ Key Highlights:
-            - 🛡️ **Production Security Hardened**: Session auth token enforcement (`X-Omni-Token`), DNS rebinding mitigation (Host header restriction), and path traversal defense.
+            - 🛡️ **Production Security Hardened**: Hardened against command injection, token exfiltration, and path traversal with strict validation.
             - 📑 **Smart Playlist & Batch Engine**: Detects and extracts playlists with item selection checkboxes and safe ceiling caps.
-            - 🍪 **Resilient Extraction**: Integrated cookie jar support with privacy-preserving opt-in browser probing.
+            - 🍪 **Bot Challenge Bypass**: Integrated cookie manager and browser session probing to bypass YouTube bot checks.
             - ⚡ **Live Real-Time SSE Stream**: Millisecond-accurate download speed, downloaded size, and dynamic ETA tracking.
-            - 🎬 **Bundled FFmpeg Engine**: High-resolution video stream merging (1080p, 4K) and MP3 conversion work out-of-the-box without manual dependencies.
             - 🚀 **Zero-Config Installer**: Installs cleanly to user profile without Administrator/UAC prompts.
 
             ---
@@ -152,6 +106,12 @@ jobs:
             If Windows displays *"Windows protected your PC"* when opening a newly released app:
             1. Click **"More info"**.
             2. Click **"Run anyway"**.
-            *(Standard for newly compiled open-source releases without expensive commercial code-signing certificates).*
+            *(Standard for newly compiled open-source releases without expensive enterprise certificates).*
+
+            ### 🛠️ Prerequisites for 1080p, 4K & MP3:
+            Merging high-resolution streams requires **FFmpeg**. Use the 1-click installer inside app settings, or run:
+            ```powershell
+            winget install Gyan.FFmpeg
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

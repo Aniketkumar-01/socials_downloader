@@ -1,15 +1,16 @@
 import asyncio
 import uuid
 import logging
+import re
 import time
 import shutil
-from typing import Dict, Optional, List, Set
+from typing import Dict, Optional, List, Set, AsyncGenerator
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled
 
-from app.config import MAX_DOWNLOAD_WORKERS, USER_DATA_DIR, COOKIES_FILE, get_default_download_dir
+from app.config import DOWNLOADS_DIR, MAX_DOWNLOAD_WORKERS, USER_DATA_DIR, COOKIES_FILE, get_default_download_dir
 from app.models import DownloadRequest, DownloadTaskStatus
 from app.downloader import build_ydl_download_options, extract_media_info, map_ytdlp_error
 

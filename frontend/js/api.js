@@ -5,18 +5,13 @@
 const API_BASE = ""; // Relative to server root
 
 export async function syncAuthToken() {
-  if (window.__OMNI_TOKEN__) return window.__OMNI_TOKEN__;
-  const meta = document.querySelector('meta[name="omni-token"]');
-  if (meta && meta.content && meta.content !== "{{OMNI_TOKEN}}") {
-    window.__OMNI_TOKEN__ = meta.content;
-    return meta.content;
-  }
+  if (window.__AUTH_TOKEN__) return window.__AUTH_TOKEN__;
   try {
     const res = await fetch(`${API_BASE}/api/token`);
     if (res.ok) {
       const data = await res.json();
       if (data && data.token) {
-        window.__OMNI_TOKEN__ = data.token;
+        window.__AUTH_TOKEN__ = data.token;
         return data.token;
       }
     }
@@ -28,11 +23,8 @@ export async function syncAuthToken() {
 
 function getAuthHeaders(extra = {}) {
   const headers = { ...extra };
-  const meta = document.querySelector('meta[name="omni-token"]');
-  const token = window.__OMNI_TOKEN__ || (meta && meta.content !== "{{OMNI_TOKEN}}" ? meta.content : null);
-  if (token) {
-    headers["X-Omni-Token"] = token;
-    headers["X-Auth-Token"] = token;
+  if (window.__AUTH_TOKEN__) {
+    headers["X-Auth-Token"] = window.__AUTH_TOKEN__;
   }
   return headers;
 }
@@ -218,28 +210,15 @@ export async function getSystemStatus() {
   return await response.json();
 }
 
-export async function fetchSettings() {
+export async function installFfmpeg() {
   await syncAuthToken();
-  const response = await fetch(`${API_BASE}/api/settings`, {
+  const response = await fetch(`${API_BASE}/api/install-ffmpeg`, {
+    method: "POST",
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || err.detail || "Failed to retrieve settings");
-  }
-  return await response.json();
-}
-
-export async function updateSettings(settings) {
-  await syncAuthToken();
-  const response = await fetch(`${API_BASE}/api/settings`, {
-    method: "POST",
-    headers: getAuthHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(settings),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || err.detail || "Failed to update settings");
+    throw new Error(err.message || err.detail || "Automated installation failed");
   }
   return await response.json();
 }
