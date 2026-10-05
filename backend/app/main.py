@@ -470,9 +470,11 @@ async def update_download_directory(request: SetDownloadDirRequest):
 @app.get("/api/settings")
 async def get_settings():
     """Returns current persistent settings."""
+    probing = is_cookie_probing_allowed()
     return {
         "download_dir": str(get_default_download_dir()),
-        "allow_browser_cookies": is_cookie_probing_allowed()
+        "allow_cookie_probing": probing,
+        "allow_browser_cookies": probing
     }
 
 @app.post("/api/settings")
@@ -486,12 +488,15 @@ async def update_settings(settings: SettingsModel):
         new_path = Path(raw).expanduser().resolve()
         saved = set_download_dir(new_path)
         res_dir = str(saved)
-    if settings.allow_browser_cookies is not None:
-        set_cookie_probing_allowed(settings.allow_browser_cookies)
+    probing_val = settings.allow_cookie_probing if settings.allow_cookie_probing is not None else settings.allow_browser_cookies
+    if probing_val is not None:
+        set_cookie_probing_allowed(probing_val)
+    probing = is_cookie_probing_allowed()
     return {
         "status": "success",
         "download_dir": res_dir,
-        "allow_browser_cookies": is_cookie_probing_allowed()
+        "allow_cookie_probing": probing,
+        "allow_browser_cookies": probing
     }
 
 @app.post("/api/choose-folder")

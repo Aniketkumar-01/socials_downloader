@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import logging
 from typing import Dict, Any, Optional, List, Union
@@ -602,9 +601,16 @@ def get_ffmpeg_path() -> Optional[str]:
     except Exception as e:
         logger.debug(f"imageio_ffmpeg binary search: {e}")
 
+    # 3. System PATH fallback (e.g. CI runners or system-installed FFmpeg)
+    if not discovered:
+        sys_ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+        if sys_ffmpeg and Path(sys_ffmpeg).is_file():
+            discovered = str(Path(sys_ffmpeg).resolve())
+
     if discovered:
         try:
             if not canonical_ffmpeg.exists():
+                USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(discovered, canonical_ffmpeg)
                 logger.info(f"Initialized canonical FFmpeg binary at: {canonical_ffmpeg}")
             ensure_ffmpeg_in_path(str(canonical_ffmpeg))

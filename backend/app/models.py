@@ -76,6 +76,7 @@ class SetDownloadDirRequest(BaseModel):
 
 class SettingsModel(BaseModel):
     download_dir: Optional[str] = Field(default=None, max_length=1000)
+    allow_cookie_probing: Optional[bool] = None
     allow_browser_cookies: Optional[bool] = None
 
 class ErrorDetail(BaseModel):

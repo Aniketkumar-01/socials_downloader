@@ -1,4 +1,3 @@
-import pytest
 from app.config import sanitize_filename
 from app.models import MediaInfoResponse, VideoItem, DownloadRequest
 from app.downloader import format_seconds

@@ -169,7 +169,7 @@ def is_cookie_probing_allowed() -> bool:
     if SETTINGS_FILE.exists():
         try:
             data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-            return bool(data.get("allow_browser_cookies", False))
+            return bool(data.get("allow_cookie_probing", data.get("allow_browser_cookies", False)))
         except Exception:
             pass
     return False
@@ -182,12 +182,14 @@ def set_cookie_probing_allowed(allowed: bool) -> bool:
             settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
         except Exception:
             settings = {}
-    settings["allow_browser_cookies"] = bool(allowed)
+    val = bool(allowed)
+    settings["allow_cookie_probing"] = val
+    settings["allow_browser_cookies"] = val
     try:
         SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
     except Exception:
         pass
-    return bool(allowed)
+    return val
 
 # One-time cleanup of obsolete root scripts if running in source repository
 if not getattr(sys, 'frozen', False):

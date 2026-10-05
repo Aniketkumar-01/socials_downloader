@@ -6,7 +6,9 @@ Ensures visible feedback, persistent logging, native standalone app shell, and z
 
 import os
 import sys
+import time
 import socket
+import secrets
 import logging
 import threading
 import subprocess
@@ -147,7 +149,6 @@ except Exception as e:
 # --------------------------------------------------------------------------
 # Step 3: Network & Helper Functions
 # --------------------------------------------------------------------------
-import secrets
 
 def get_free_port() -> int:
     """Binds to port 0 on localhost to let the OS assign a guaranteed free ephemeral port."""
