@@ -18,29 +18,39 @@ from app.task_manager import task_manager, CancelledDownload
 client = TestClient(app)
 
 # ---------------------------------------------------------------------------
-# 1. Localhost API Hardening Tests (Token, Host, Origin)
+# 1. Localhost API Hardening Tests (X-Omni-Token, Host Rebinding, Origin)
 # ---------------------------------------------------------------------------
 
 def test_token_rejection_missing():
-    """Requests to /api/* without X-Auth-Token or ?token= must return 401."""
+    """Requests to /api/* without X-Omni-Token or ?token= must return 403 Forbidden."""
     response = client.get("/api/cookies-status")
-    assert response.status_code == 401
+    assert response.status_code == 403
     data = response.json()
-    assert data["code"] == "UNAUTHORIZED"
+    assert data["code"] == "FORBIDDEN"
+    assert "Invalid or missing session authentication token" in data["message"]
 
 
 def test_token_rejection_invalid():
-    """Requests to /api/* with an invalid token must return 401."""
+    """Requests to /api/* with an invalid token must return 403 Forbidden."""
     response = client.get(
         "/api/cookies-status",
-        headers={"X-Auth-Token": "invalid-secret-token"}
+        headers={"X-Omni-Token": "invalid-secret-token"}
     )
-    assert response.status_code == 401
-    assert response.json()["code"] == "UNAUTHORIZED"
+    assert response.status_code == 403
+    assert response.json()["code"] == "FORBIDDEN"
 
 
-def test_token_accepted_header():
-    """Requests with valid X-Auth-Token header must be accepted."""
+def test_token_accepted_omni_header():
+    """Requests with valid X-Omni-Token header must be accepted."""
+    response = client.get(
+        "/api/cookies-status",
+        headers={"X-Omni-Token": API_TOKEN}
+    )
+    assert response.status_code == 200
+
+
+def test_token_accepted_legacy_header():
+    """Requests with legacy X-Auth-Token header must also be accepted for backward compatibility."""
     response = client.get(
         "/api/cookies-status",
         headers={"X-Auth-Token": API_TOKEN}
@@ -56,20 +66,21 @@ def test_token_accepted_query_param_for_sse():
 
 def test_host_header_rejection():
     """Requests with unauthorized Host headers (e.g. DNS rebinding) must be rejected with 403."""
-    response = client.get(
-        "/api/cookies-status",
-        headers={"Host": "attacker.com", "X-Auth-Token": API_TOKEN}
-    )
-    assert response.status_code == 403
-    assert response.json()["code"] == "FORBIDDEN"
+    for bad_host in ["attacker.com", "evil.localhost.com", "192.168.1.100", "example.com:8000"]:
+        response = client.get(
+            "/api/cookies-status",
+            headers={"Host": bad_host, "X-Omni-Token": API_TOKEN}
+        )
+        assert response.status_code == 403
+        assert response.json()["code"] == "FORBIDDEN"
 
 
 def test_host_header_allowed():
     """Requests with 127.0.0.1 or localhost Host headers must be allowed."""
-    for valid_host in ["127.0.0.1:8000", "localhost:8000", "127.0.0.1", "localhost"]:
+    for valid_host in ["127.0.0.1:8000", "localhost:8000", "127.0.0.1:51234", "127.0.0.1", "localhost"]:
         response = client.get(
             "/api/cookies-status",
-            headers={"Host": valid_host, "X-Auth-Token": API_TOKEN}
+            headers={"Host": valid_host, "X-Omni-Token": API_TOKEN}
         )
         assert response.status_code == 200
 
@@ -78,7 +89,7 @@ def test_origin_header_rejection():
     """Requests with external Origin header must be rejected with 403."""
     response = client.get(
         "/api/cookies-status",
-        headers={"Origin": "https://malicious-website.com", "X-Auth-Token": API_TOKEN}
+        headers={"Origin": "https://malicious-website.com", "X-Omni-Token": API_TOKEN}
     )
     assert response.status_code == 403
     assert response.json()["code"] == "FORBIDDEN"
@@ -86,12 +97,13 @@ def test_origin_header_rejection():
 
 def test_origin_header_allowed():
     """Requests from localhost / 127.0.0.1 Origin must be permitted."""
-    for valid_origin in ["http://127.0.0.1:8000", "http://localhost:8000"]:
+    for valid_origin in ["http://127.0.0.1:8000", "http://localhost:8000", "http://127.0.0.1:51234"]:
         response = client.get(
             "/api/cookies-status",
-            headers={"Origin": valid_origin, "X-Auth-Token": API_TOKEN}
+            headers={"Origin": valid_origin, "X-Omni-Token": API_TOKEN}
         )
         assert response.status_code == 200
+
 
 
 # ---------------------------------------------------------------------------
@@ -404,11 +416,51 @@ def test_open_file_not_found():
     """Opening a nonexistent task's file returns 404 with standard error structure."""
     response = client.post(
         "/api/open-file?task_id=nonexistent-task-id",
-        headers={"X-Auth-Token": API_TOKEN}
+        headers={"X-Omni-Token": API_TOKEN}
     )
     assert response.status_code == 404
     assert response.json()["code"] == "NOT_FOUND"
 
 
+# ---------------------------------------------------------------------------
+# 9. Settings and Cookie Probing Opt-In Tests
+# ---------------------------------------------------------------------------
+
+def test_settings_retrieval_and_cookie_probing_default():
+    """Cookie probing must default to False (opt-in requirement)."""
+    response = client.get(
+        "/api/settings",
+        headers={"X-Omni-Token": API_TOKEN}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "allow_cookie_probing" in data
+    assert "download_dir" in data
 
 
+def test_settings_update_cookie_probing():
+    """Updating settings changes cookie probing flag persistently."""
+    response = client.post(
+        "/api/settings",
+        json={"allow_cookie_probing": True},
+        headers={"X-Omni-Token": API_TOKEN}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["allow_cookie_probing"] is True
+
+    # Verify persistent state via GET
+    get_res = client.get(
+        "/api/settings",
+        headers={"X-Omni-Token": API_TOKEN}
+    )
+    assert get_res.json()["allow_cookie_probing"] is True
+
+    # Revert back to False
+    revert_res = client.post(
+        "/api/settings",
+        json={"allow_cookie_probing": False},
+        headers={"X-Omni-Token": API_TOKEN}
+    )
+    assert revert_res.status_code == 200
+    assert revert_res.json()["allow_cookie_probing"] is False

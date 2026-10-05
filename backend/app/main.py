@@ -27,14 +27,17 @@ from app.config import (
     ENGINE_DIR,
     MAX_COOKIE_SIZE,
     get_default_download_dir,
-    set_download_dir
+    set_download_dir,
+    is_cookie_probing_allowed,
+    set_cookie_probing_allowed
 )
 from app.models import (
     InfoRequest,
     MediaInfoResponse,
     DownloadRequest,
     DownloadTaskStatus,
-    SetDownloadDirRequest
+    SetDownloadDirRequest,
+    SettingsModel
 )
 from app.downloader import extract_media_info, MediaExtractionError, map_ytdlp_error
 from app.task_manager import task_manager
@@ -110,19 +113,19 @@ async def security_and_auth_middleware(request: Request, call_next):
                 }
             )
 
-    # 3. Require X-Auth-Token on every /api/* request (except /api/token)
+    # 3. Require X-Omni-Token on every /api/* request (except /api/token)
     if request.url.path.startswith("/api/") and request.url.path != "/api/token":
-        token = request.headers.get("x-auth-token")
+        token = request.headers.get("x-omni-token") or request.headers.get("x-auth-token")
         if not token:
             token = request.query_params.get("token")
 
         if not token or not secrets.compare_digest(token, API_TOKEN):
             return JSONResponse(
-                status_code=401,
+                status_code=403,
                 content={
-                    "code": "UNAUTHORIZED",
-                    "message": "Missing or invalid authentication token.",
-                    "hint": "Provide valid token in X-Auth-Token header or ?token= query parameter.",
+                    "code": "FORBIDDEN",
+                    "message": "Missing or invalid session authentication token.",
+                    "hint": "Provide valid token in X-Omni-Token header or ?token= query parameter.",
                     "source": "app"
                 }
             )
@@ -366,19 +369,17 @@ async def open_downloads_folder(task_id: Optional[str] = None):
 
         if os.name == 'nt':
             if target_path.is_file():
-                # Windows Explorer syntax: explorer.exe /select,"C:\path\file.mp4"
-                # Single formatted string prevents Python list2cmdline from quoting "/select," which breaks Explorer switch parsing
-                subprocess.Popen(f'explorer.exe /select,"{norm_path}"', creationflags=NO_WINDOW_FLAG)
+                subprocess.Popen(["explorer.exe", f"/select,{norm_path}"], shell=False, creationflags=NO_WINDOW_FLAG)
             else:
-                subprocess.Popen(f'explorer.exe "{norm_path}"', creationflags=NO_WINDOW_FLAG)
+                subprocess.Popen(["explorer.exe", norm_path], shell=False, creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
             if target_path.is_file():
-                subprocess.Popen(["open", "-R", norm_path])
+                subprocess.Popen(["open", "-R", norm_path], shell=False)
             else:
-                subprocess.Popen(["open", norm_path])
+                subprocess.Popen(["open", norm_path], shell=False)
         else:
             folder = norm_path if target_path.is_dir() else str(target_path.parent)
-            subprocess.Popen(["xdg-open", folder])
+            subprocess.Popen(["xdg-open", folder], shell=False)
 
         return {"status": "success", "opened_path": norm_path}
     except HTTPException:
@@ -428,11 +429,11 @@ async def open_downloaded_file(task_id: str):
                 os.startfile(norm_path)
             except Exception as e:
                 logger.warning(f"os.startfile failed ({e}), attempting fallback: {norm_path}")
-                subprocess.Popen(["explorer.exe", norm_path], creationflags=NO_WINDOW_FLAG)
+                subprocess.Popen(["explorer.exe", norm_path], shell=False, creationflags=NO_WINDOW_FLAG)
         elif sys.platform == 'darwin':
-            subprocess.Popen(["open", norm_path])
+            subprocess.Popen(["open", norm_path], shell=False)
         else:
-            subprocess.Popen(["xdg-open", norm_path])
+            subprocess.Popen(["xdg-open", norm_path], shell=False)
         return {"status": "success", "file": norm_path}
     except HTTPException:
         raise
@@ -472,91 +473,74 @@ async def update_download_directory(request: SetDownloadDirRequest):
         logger.error(f"Failed to set download directory '{request.download_dir}': {e}")
         raise HTTPException(status_code=400, detail="Invalid directory path provided.")
 
+@app.get("/api/settings")
+async def get_settings():
+    """Returns current persistent settings."""
+    return {
+        "download_dir": str(get_default_download_dir()),
+        "allow_browser_cookies": is_cookie_probing_allowed()
+    }
+
+@app.post("/api/settings")
+async def update_settings(settings: SettingsModel):
+    """Updates and persists application settings (download directory, cookie probing)."""
+    res_dir = str(get_default_download_dir())
+    if settings.download_dir is not None:
+        raw = settings.download_dir.strip().strip('"\'')
+        if not raw:
+            raw = str(get_default_download_dir())
+        new_path = Path(raw).expanduser().resolve()
+        saved = set_download_dir(new_path)
+        res_dir = str(saved)
+    if settings.allow_browser_cookies is not None:
+        set_cookie_probing_allowed(settings.allow_browser_cookies)
+    return {
+        "status": "success",
+        "download_dir": res_dir,
+        "allow_browser_cookies": is_cookie_probing_allowed()
+    }
+
 @app.post("/api/choose-folder")
 async def trigger_folder_picker():
     """
-    Opens native Windows folder selection dialog and returns the chosen folder.
-    Guarantees exactly ONE dialog is shown; closing or cancelling immediately returns
-    status='cancelled' without falling back to secondary or tertiary popups.
+    Opens native Windows folder selection dialog using PyWebView's native dialog
+    (window.create_file_dialog with FOLDER_DIALOG) and returns the chosen folder.
     """
     curr = str(get_default_download_dir())
-    if os.name != 'nt':
-        return {"status": "error", "message": "Folder picker only supported on Windows.", "download_dir": curr, "path": curr}
-
     loop = asyncio.get_running_loop()
 
-    # Method 1: Python Tkinter in threadpool executor (no shell spawn needed)
-    def _tk_ask() -> tuple[str, Optional[str]]:
+    def _pywebview_ask() -> tuple[str, Optional[str]]:
         try:
-            import tkinter as tk
-            from tkinter import filedialog
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            res = filedialog.askdirectory(
-                parent=root,
-                title="Select Download Destination Folder",
-                initialdir=curr
-            )
-            root.destroy()
-            if res:
-                return ("OK", str(res).strip())
-            else:
+            import webview
+            if webview.windows and len(webview.windows) > 0:
+                win = webview.windows[0]
+                res = win.create_file_dialog(
+                    dialog_type=webview.FOLDER_DIALOG,
+                    directory=curr,
+                    allow_multiple=False
+                )
+                if res and len(res) > 0 and res[0]:
+                    return ("OK", str(res[0]).strip())
                 return ("CANCEL", None)
         except Exception as e:
-            logger.debug(f"Tkinter folder picker not available: {e}")
+            logger.debug(f"PyWebView folder picker error: {e}")
             return ("ERROR", None)
+        return ("CANCEL", None)
 
     try:
-        status, tk_res = await loop.run_in_executor(None, _tk_ask)
-        if status == "OK" and tk_res and Path(tk_res).is_dir():
-            saved = set_download_dir(Path(tk_res))
-            return {"status": "success", "download_dir": str(saved), "path": str(saved)}
-        elif status == "CANCEL":
-            # User explicitly closed or cancelled the dialog. Never open secondary popups!
-            return {"status": "cancelled", "download_dir": curr, "path": curr}
-    except Exception as e:
-        logger.debug(f"Tkinter method error: {e}")
-
-    # Method 2: Fallback ONLY if Tkinter itself was missing/failed to load
-    # Single dialog that exits immediately whether OK or Cancelled.
-    ps_script = f"""
-Add-Type -AssemblyName System.Windows.Forms
-$f = New-Object System.Windows.Forms.FolderBrowserDialog
-$f.Description = 'Select download destination folder for OmniDownloader'
-$f.ShowNewFolderButton = $true
-$f.SelectedPath = '{curr}'
-$res = $f.ShowDialog()
-if ($res -eq [System.Windows.Forms.DialogResult]::OK -and $f.SelectedPath) {{
-    [Console]::Out.Write($f.SelectedPath)
-}}
-exit 0
-"""
-    try:
-        import base64
-        encoded = base64.b64encode(ps_script.encode('utf-16le')).decode('ascii')
-        proc = await asyncio.create_subprocess_exec(
-            "powershell", "-NoProfile", "-STA", "-EncodedCommand", encoded,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=NO_WINDOW_FLAG
-        )
-        stdout, stderr = await proc.communicate()
-        chosen = stdout.decode("utf-8", errors="replace").strip().strip('"\'')
-        if chosen and Path(chosen).is_dir():
+        status, chosen = await loop.run_in_executor(None, _pywebview_ask)
+        if status == "OK" and chosen and Path(chosen).is_dir():
             saved = set_download_dir(Path(chosen))
             return {"status": "success", "download_dir": str(saved), "path": str(saved)}
-        return {"status": "cancelled", "download_dir": curr, "path": curr}
     except Exception as e:
-        logger.warning(f"PowerShell folder picker error: {e}")
+        logger.debug(f"Folder picker error: {e}")
 
     return {"status": "cancelled", "download_dir": curr, "path": curr}
 
 @app.get("/api/system-status")
 async def get_system_status():
     """
-    Returns system readiness status including FFmpeg availability,
-    recommended resolution options, and installation instructions.
+    Returns system readiness status confirming bundled FFmpeg availability.
     """
     from app.downloader import get_ffmpeg_path
     ff_path = get_ffmpeg_path()
@@ -566,98 +550,12 @@ async def get_system_status():
         "status": "ready" if has_ffmpeg else "warning",
         "ffmpeg_installed": has_ffmpeg,
         "ffmpeg_path": ff_path if has_ffmpeg else None,
-        "recommended_winget": "winget install Gyan.FFmpeg",
-        "official_download_url": "https://www.gyan.dev/ffmpeg/builds/",
         "message": (
-            "FFmpeg is ready. High-resolution stream merging (1080p, 4K) and MP3 conversion are active."
+            "FFmpeg is bundled and ready. High-resolution stream merging (1080p, 4K) and MP3 conversion are active."
             if has_ffmpeg else
-            "FFmpeg is required for 1080p/4K video merging and MP3 audio conversion."
+            "FFmpeg binary not detected."
         )
     }
-
-@app.post("/api/install-ffmpeg")
-async def auto_install_ffmpeg():
-    """
-    Attempts automated 1-click installation of FFmpeg for Windows:
-    1. Try running `winget install Gyan.FFmpeg`
-    2. Fallback to downloading standalone binaries from official builds into USER_DATA_DIR / 'ffmpeg.exe'.
-    """
-    import urllib.request
-    import zipfile
-    import io
-    from app.downloader import get_ffmpeg_path, ensure_ffmpeg_in_path
-    from app.config import USER_DATA_DIR
-
-    curr = get_ffmpeg_path()
-    if curr and Path(curr).is_file():
-        return {"status": "success", "message": "FFmpeg is already installed and ready.", "ffmpeg_path": curr}
-
-    # 1. Try winget if on Windows
-    if os.name == 'nt':
-        try:
-            logger.info("Attempting automated winget installation of Gyan.FFmpeg...")
-            proc = await asyncio.create_subprocess_exec(
-                "winget", "install", "Gyan.FFmpeg", "--accept-package-agreements", "--accept-source-agreements", "--silent",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                creationflags=NO_WINDOW_FLAG
-            )
-            try:
-                await asyncio.wait_for(proc.communicate(), timeout=35.0)
-                ff = get_ffmpeg_path()
-                if ff and Path(ff).is_file():
-                    return {"status": "success", "message": "FFmpeg installed successfully via winget!", "ffmpeg_path": ff}
-            except asyncio.TimeoutError:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.debug(f"Winget install attempt notice: {e}")
-
-    # 2. Try direct download of standalone ffmpeg.exe into USER_DATA_DIR
-    target_exe = USER_DATA_DIR / "ffmpeg.exe"
-    download_urls = [
-        "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-        "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-    ]
-
-    loop = asyncio.get_running_loop()
-
-    def _download_and_extract():
-        for url in download_urls:
-            try:
-                logger.info(f"Downloading FFmpeg from {url}...")
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=60) as resp:
-                    data = resp.read()
-                
-                with zipfile.ZipFile(io.BytesIO(data)) as z:
-                    for filename in z.namelist():
-                        if filename.endswith("ffmpeg.exe"):
-                            with z.open(filename) as src, open(target_exe, "wb") as dst:
-                                dst.write(src.read())
-                            ensure_ffmpeg_in_path(str(target_exe))
-                            return str(target_exe)
-            except Exception as ex:
-                logger.warning(f"Download attempt from {url} failed: {ex}")
-        return None
-
-    try:
-        installed = await loop.run_in_executor(None, _download_and_extract)
-        if installed and Path(installed).is_file():
-            return {
-                "status": "success",
-                "message": "FFmpeg successfully installed and registered!",
-                "ffmpeg_path": installed
-            }
-    except Exception as e:
-        logger.error(f"Automated FFmpeg download failed: {e}")
-
-    raise HTTPException(
-        status_code=500,
-        detail="Automated install failed. Please open PowerShell and run 'winget install Gyan.FFmpeg' or visit https://www.gyan.dev/ffmpeg/builds/"
-    )
 
 # --------------------------------------------------------------------------
 # Task 3: Cookie Validation & Lifecycle
@@ -765,7 +663,9 @@ async def update_engine():
             "--target", str(ENGINE_DIR),
             "--no-warn-script-location"
         ]
-        proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, creationflags=NO_WINDOW_FLAG)
+        proc = await asyncio.to_thread(
+            subprocess.run, cmd, capture_output=True, text=True, shell=False, creationflags=NO_WINDOW_FLAG
+        )
         if proc.returncode != 0:
             raise RuntimeError(f"pip install failed: {proc.stderr or proc.stdout}")
 
@@ -796,7 +696,20 @@ async def update_engine():
             except Exception:
                 pass
 
-# Mount static frontend assets (css, js) with html=False so index.html hits token injector
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    index_file = FRONTEND_DIR / "index.html"
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="index.html not found")
+    content = index_file.read_text(encoding="utf-8")
+    content = content.replace("{{OMNI_TOKEN}}", API_TOKEN)
+    return HTMLResponse(content=content)
+
+@app.get("/index.html", response_class=HTMLResponse)
+async def serve_index_html():
+    return await serve_index()
+
+# Mount static frontend assets (css, js, fonts) with html=False so index.html hits token injector
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=False), name="frontend")
 

@@ -1,6 +1,6 @@
 # ⚡ OmniDownloader — Comprehensive Technical Documentation & Architecture Manual
 
-> **Version:** 1.2.3  
+> **Version:** 1.3.0  
 > **Target OS:** Windows 10 / 11 (x64)  
 > **Architecture:** Local-First Micro-Service / Hybrid Desktop Client  
 > **Repository:** [Aniketkumar-01/socials_downloader](https://github.com/Aniketkumar-01/socials_downloader)  
@@ -12,11 +12,12 @@
 1. [Executive Summary & Core Philosophy](#1-executive-summary--core-philosophy)
 2. [Technology Stack: What We Use & Why We Use It](#2-technology-stack-what-we-use--why-we-use-it)
 3. [End-to-End System Architecture](#3-end-to-end-system-architecture)
+   - [3.3 Repository File & Directory Structure](#33-repository-file--directory-structure)
 4. [Backend Engineering & Module Breakdown](#4-backend-engineering--module-breakdown)
 5. [Frontend Architecture & Cyber-Obsidian UI/UX Design System](#5-frontend-architecture--cyber-obsidian-uiux-design-system)
 6. [Security Architecture & Threat Hardening](#6-security-architecture--threat-hardening)
 7. [REST API & Real-Time SSE Protocol Specification](#7-rest-api--real-time-sse-protocol-specification)
-8. [Media Extraction, Remuxing & Platform Bypass Engine](#8-media-extraction-remuxing--platform-bypass-engine)
+8. [Media Extraction, Remuxing & Resilient Extraction Engine](#8-media-extraction-remuxing--resilient-extraction-engine)
 9. [Build, Packaging & Distribution Pipeline](#9-build-packaging--distribution-pipeline)
 10. [Operational Runbook, Edge Cases & Troubleshooting](#10-operational-runbook-edge-cases--troubleshooting)
 
@@ -24,13 +25,13 @@
 
 ## 1. Executive Summary & Core Philosophy
 
-**OmniDownloader** is a high-performance, local-first Windows desktop media extraction and remuxing suite. It enables users to download high-definition video, audio, and playlists from YouTube, Instagram, TikTok, X (Twitter), Bilibili, and over 1,000 supported platforms with zero loss in fidelity, real-time byte-level telemetry, and zero cloud dependency.
+**OmniDownloader** is a high-performance, local-first Windows desktop media extraction and remuxing suite. It enables users to download high-definition video, audio, and playlists from YouTube, Instagram, TikTok, X (Twitter), Bilibili, and over 1,000 supported platforms with optimal fidelity (video stream merging uses lossless stream-copy remuxing without re-encoding, while audio conversion performs high-bitrate 320kbps MP3 transcoding), real-time byte-level telemetry, and zero cloud dependency.
 
 ### Core Engineering Principles
 1. **100% Privacy & Local-First Execution**: The application runs entirely on the user's workstation (`127.0.0.1`). No media, URLs, telemetry, or user credentials ever touch an intermediary cloud server.
 2. **Zero-Bloat Native Windows Experience**: Rather than shipping a 150MB+ Electron runtime with redundant Chromium instances, OmniDownloader leverages the operating system's native **Microsoft Edge WebView2** engine and Win32 APIs, keeping the installer lightweight and memory footprint minimal.
-3. **Resilient Multi-Platform Extraction**: Social media platforms constantly evolve bot mitigations, rate limits, and client signatures. OmniDownloader embeds a multi-tier fallback architecture combining active web extractors, automatic local browser session probing, and mobile API client fallbacks.
-4. **Defense in Depth**: Robust defenses against Windows-specific vulnerabilities, including path traversal, mount-point crashes (`WinError 448`), DOS device name injection (`CON`, `PRN`, `NUL`), and shell quoting bugs.
+3. **Resilient Multi-Platform Extraction**: Social media platforms constantly evolve bot mitigations, rate limits, and client signatures. OmniDownloader embeds a multi-tier fallback architecture combining active web extractors, privacy-preserving opt-in local browser session probing, and mobile API client fallbacks.
+4. **Defense in Depth**: Robust defenses against Windows-specific vulnerabilities, including path traversal, mount-point crashes (`WinError 448`), DOS device name injection (`CON`, `PRN`, `NUL`), Host header rebinding, and mandatory session token authentication.
 5. **Cyber-Obsidian Aesthetic**: A state-of-the-art UI featuring deep obsidian dark tones, glowing neon mint/cyan accents, micro-animations, and high-legibility typography designed for clarity and visual delight.
 
 ---
@@ -41,20 +42,20 @@ Every library, framework, and tool in OmniDownloader was deliberately chosen to 
 
 | Layer | Technology Selected | Alternatives Considered | Technical Rationale & Justification ("Why") |
 | :--- | :--- | :--- | :--- |
-| **Backend Runtime** | **Python 3.10+ (64-bit)** | Node.js, Go, Rust | Python provides native interoperability with `yt-dlp` (the industry-standard extraction engine), rich `ctypes` bindings to the Win32 API, and rapid development without sacrificing I/O throughput. |
-| **Web Server Framework** | **FastAPI + Starlette** | Flask, Django, Express | FastAPI offers asynchronous request handling (`async`/`await`), built-in Pydantic v2 data validation, high throughput with ASGI, and native Server-Sent Events (SSE) streaming capabilities with zero boilerplate. |
-| **ASGI Server** | **Uvicorn (h11 protocol)** | Hypercorn, Daphne, Gunicorn | Ultra-fast ASGI web server implementation. Bound strictly to `127.0.0.1` in an isolated daemon thread, ensuring instant startup, minimal memory overhead, and clean shutdown hooks. |
-| **Data Validation** | **Pydantic v2** | Marshmallow, manual checks | Compiled Rust core (`pydantic-core`) ensures near-zero deserialization latency, strict type checking, and automatic JSON schema generation for API contracts. |
-| **Media Extraction** | **yt-dlp** | youtube-dl, pytube, custom scrapers | Actively maintained by a global developer community, supports 1,000+ sites, handles dynamic JavaScript player deciphering (n-sig / sig tokens), supports DASH/HLS stream separation, and provides hooks for format filtering. |
-| **Media Transcoding** | **FFmpeg (via imageio-ffmpeg / system PATH)** | libav, moviepy, handbrake | The universal standard for audio/video codec manipulation. Required to merge separate DASH high-res video (VP9/AV1) and audio (Opus/AAC) into universal MP4 containers, or transcode to 320kbps MP3 with embedded cover art. |
-| **Desktop Window GUI** | **PyWebView / Microsoft Edge WebView2 App Mode** | Electron, Tauri, PyQt, Tkinter | Electron bundles ~150MB of Chromium and consumes 300MB+ RAM. PyWebView and Edge App Mode reuse the pre-installed Windows 10/11 Evergreen Edge WebView2 runtime, yielding a tiny binary size, full CSS3/ES6 support, and negligible RAM usage. |
-| **Win32 Integration** | **ctypes + PowerShell (STA) + Tkinter** | pywin32, PyQt dialogs | Uses lightweight built-in Windows components for native message boxes, native folder browsers, and Windows Explorer `/select` file reveals without introducing heavy C-extension dependencies. |
-| **Frontend Framework** | **Vanilla ES6+ JavaScript** | React, Vue, Svelte, Angular | Zero build step, zero `node_modules` overhead, instant DOM rendering, zero vulnerability maintenance, and native browser APIs (`EventSource`, `fetch`, `FormData`). |
-| **Frontend Styling** | **Vanilla CSS3 (Custom Design System)** | Tailwind CSS, Bootstrap | Custom CSS variables (design tokens), hardware-accelerated animations, zero compile step, seamless dark-mode depth, and bespoke glassmorphism. |
-| **Typography** | **Google Fonts (`Outfit` & `JetBrains Mono`)** | System fonts, Inter | `Outfit` provides a geometric, futuristic, premium look for headlines and controls; `JetBrains Mono` delivers monospace alignment for file sizes, speeds, and technical error logs. |
-| **Binary Compiler** | **PyInstaller** | Nuitka, cx_Freeze | Robust support for dynamic packaging, hidden imports discovery, embedded data bundling, UPX compression, and windowed (no-console) execution. |
-| **Windows Installer** | **Inno Setup 6** | WiX Toolset, NSIS, MSIX | Standard enterprise-grade Windows installer compiler. Produces clean, non-admin (per-user) installers that register with Windows Search, Start Menu, Desktop, and Windows Settings "Installed apps" uninstaller. |
-| **CI/CD Automation** | **GitHub Actions (`windows-latest`)** | AppVeyor, GitLab CI | Seamless native integration with GitHub Releases, automated builds triggered on version tags (`v*`), running Choco Inno Setup and PyInstaller on clean Windows runners. |
+| **Backend Runtime** | **Python 3.10+ (64-bit)** | Node.js, Go, Rust | Native compatibility with yt-dlp and Win32 APIs with high asynchronous I/O throughput. |
+| **Web Server Framework** | **FastAPI + Starlette** | Flask, Django, Express | Asynchronous ASGI request handling, Pydantic v2 data validation, and native SSE streaming. |
+| **ASGI Server** | **Uvicorn (h11 protocol)** | Hypercorn, Daphne, Gunicorn | High-performance asynchronous web server bound strictly to loopback in an isolated daemon thread. |
+| **Data Validation** | **Pydantic v2** | Marshmallow, Cerberus | Rust-compiled validation core offering low deserialization latency and strict schema enforcement. |
+| **Media Extraction** | **yt-dlp** | youtube-dl, pytube, custom scrapers | Community-standard extraction engine supporting over 1,000 platforms with active signature deciphering. |
+| **Media Transcoding** | **FFmpeg (bundled via imageio-ffmpeg)** | libav, moviepy, handbrake | Industry-standard muxer required for DASH stream-copy video merging and 320kbps MP3 transcoding. |
+| **Desktop Window GUI** | **PyWebView / Edge WebView2 App Mode** | Electron, Tauri, PyQt | Reuses native Windows Evergreen Edge WebView2 to eliminate heavy Chromium bundle overhead. |
+| **Win32 Integration** | **PyWebView Dialogs + Win32 ctypes** | Tkinter, PowerShell STA, pywin32 | Native OS folder dialogs and Explorer reveals without heavy C-extensions or GUI toolkits. |
+| **Frontend Framework** | **Vanilla ES6+ JavaScript** | React, Vue, Svelte | Zero build step and instant DOM execution using native browser fetch and EventSource APIs. |
+| **Frontend Styling** | **Vanilla CSS3 (Design System)** | Tailwind CSS, Bootstrap | Custom CSS design tokens with hardware-accelerated transitions and zero compilation overhead. |
+| **Typography** | **Local Fonts (`Outfit` & `JetBrains Mono`)** | Google Fonts CDN, system fonts | Bundled offline font files ensuring zero cloud network requests and consistent typography. |
+| **Binary Compiler** | **PyInstaller** | Nuitka, cx_Freeze | Packages dependencies into a single windowed binary with UPX disabled for antivirus trust. |
+| **Windows Installer** | **Inno Setup 6** | WiX Toolset, NSIS, MSIX | Standard enterprise Windows installer creating per-user non-admin setups with Start Menu integration. |
+| **CI/CD Automation** | **GitHub Actions (`windows-latest`)** | AppVeyor, GitLab CI | Automated linting, pytest hardening tests, and release compilation on clean Windows runners. |
 
 ---
 
@@ -155,14 +156,66 @@ sequenceDiagram
     API->>FS: Launch explorer.exe /select,"C:\path\to\file.mp4"
 ```
 
+### 3.3 Repository File & Directory Structure
+
+```
+OmniDownloader/
+├── .github/
+│   └── workflows/
+│       └── release.yml                    # Automated GitHub Actions CI/CD (lint, test, build matrix)
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py                    # Python package initializer
+│   │   ├── config.py                      # App configuration, frozen paths (_MEIPASS), sanitization, WinError 448 mitigation
+│   │   ├── downloader.py                  # yt-dlp core, platform detection, format matrix, opt-in browser probing, FFmpeg muxer
+│   │   ├── main.py                        # FastAPI REST API, Host/Origin security, token auth, native dialog, Explorer reveal
+│   │   ├── models.py                      # Pydantic v2 data validation schemas (requests, responses, task & settings models)
+│   │   └── task_manager.py                # Thread-safe task state machine, ThreadPoolExecutor, SSE pub/sub queue, cancellation
+│   ├── tests/
+│   │   ├── conftest.py                    # Pytest test fixtures and loopback environment setup
+│   │   ├── test_downloader.py             # Unit tests for platform detection, format parsing, and extraction logic
+│   │   ├── test_hardening.py              # Security tests: session token, Host rebinding, path traversal, DOS devices
+│   │   └── test_quality.py                # Tests for resolution tiering, audio extraction, and bitrate calculation
+│   └── requirements.txt                   # Backend Python dependencies (FastAPI, Uvicorn, yt-dlp, Pydantic, etc.)
+├── frontend/
+│   ├── css/
+│   │   └── styles.css                     # Cyber-Obsidian UI design system, CSS variables, glassmorphism, animations
+│   ├── fonts/                             # Locally bundled offline typography (Outfit & JetBrains Mono)
+│   ├── js/
+│   │   ├── api.js                         # Fetch API client, REST endpoints wrapper, auth token synchronization, settings
+│   │   ├── app.js                         # Primary frontend controller, DOM manipulation, format selector, settings modal
+│   │   └── progress.js                    # Server-Sent Events (SSE) listener, live progress smoothing, ETA/speed formatting
+│   └── index.html                         # Semantic HTML5 desktop single-page application shell
+├── scripts/
+│   ├── build.ps1                          # Unified build script for standalone executable and Inno Setup installer
+│   ├── release.ps1                        # Unified release script (stages, commits, tags, and pushes to GitHub)
+│   └── start.ps1                          # 1-Click developer bootstrap script (creates venv, installs deps, runs launcher)
+├── tools/
+│   ├── create_icon.py                     # Asset generator for multi-resolution Windows app.ico
+│   └── download_fonts.py                  # Offline font asset downloader
+├── examples/
+│   └── cookies.txt.example                # Example Netscape format cookies template for manual authentication
+├── assets/
+│   └── app.ico                            # Committed multi-resolution application icon
+├── .gitignore                             # Git ignore rules for virtualenvs, caches, media files, and build artifacts
+├── DOCUMENTATION.md                       # Comprehensive architecture manual, API specifications, and threat model
+├── installer.iss                          # Inno Setup 6 compiler script for non-admin per-user Windows Setup wizard
+├── launcher.py                            # Standalone desktop bootstrap launcher (port 0 discovery, Edge WebView2, token injection)
+├── LICENSE                                # MIT open-source license
+├── omnidownloader.spec                    # PyInstaller bundle specification (hidden imports, upx=False, windowed mode)
+└── README.md                              # Public GitHub repository landing page, features, and quick start guide
+```
+
 ---
 
 ## 4. Backend Engineering & Module Breakdown
 
 ### 4.1 `launcher.py` — Self-Healing Host Launcher
 `launcher.py` is the bootstrap entry point for both frozen standalone binaries (`OmniDownloader.exe`) and source installations.
-- **Port Discovery (`find_available_port`)**: Checks if default port `8000` is bound. If occupied, probes sequential ports up to `8050` to guarantee startup without crashing due to port conflicts.
+- **Port Discovery (`get_free_port`)**: Binds dynamically to port `0` and lets the Windows operating system assign an available ephemeral port, eliminating port scan collisions.
+- **Session Authentication Token**: Generates a random cryptographic URL-safe session token (`secrets.token_urlsafe(32)`), exports it to `os.environ["OMNI_TOKEN"]`, and injects it into the frontend single-page application.
 - **Mount Point Hardening (`_safe_realpath` & `sanitize_system_path`)**: Protects against Windows `WinError 448: ERROR_UNTRUSTED_MOUNT_POINT` caused by broken symlinks or Node Version Manager (`.nodejs`) junctions in system `PATH`.
+- **Subprocess Safety**: All process launches enforce `shell=False` and list-based arguments.
 - **Tri-Level Window Orchestration**:
   1. *Level 1 (PyWebView)*: Attempts native Edge WebView2 creation.
   2. *Level 2 (Native Edge App Shell)*: If PyWebView is absent, locates `msedge.exe` or `chrome.exe` and launches with `--app=http://127.0.0.1:{port}` and an isolated profile, giving a windowed application without browser tabs or address bar.
@@ -170,12 +223,13 @@ sequenceDiagram
 - **Native Diagnostic Fallback (`show_native_message`)**: Invokes `MessageBoxW` via Win32 `ctypes` on fatal bootstrap errors so the user is never left with silent failures.
 
 ### 4.2 `backend/app/main.py` — REST API & Security Gateway
-- **CORS Middleware**: Restricts allowed origins strictly to local loopback hosts (`127.0.0.1`, `localhost`) to prevent unauthorized cross-origin access from external web pages.
+- **Session Token Enforcement**: Validates `X-Omni-Token` (or legacy `X-Auth-Token`) on all `/api/*` endpoints with `secrets.compare_digest`. Rejects missing or invalid tokens with `403 Forbidden`.
+- **Host Header Validation Middleware**: Mitigates DNS rebinding by inspecting the HTTP `Host` header and rejecting any request not directed to `127.0.0.1:{port}` or `localhost:{port}` with `403 Forbidden`.
+- **CORS Middleware**: Restricts allowed origins strictly to local loopback hosts (`127.0.0.1`, `localhost`).
 - **Path Traversal Shield**: All endpoints accepting or returning paths (`/api/file`, `/api/open-folder`, `/api/choose-folder`) resolve paths strictly with `Path.resolve()` and verify containment against whitelisted directories via `is_relative_to()`.
-- **Windows Explorer Launcher (`/api/open-folder`)**: Formats command strings directly (`explorer.exe /select,"<filepath>"`) rather than passing Python argument lists, preventing Python's `list2cmdline` from incorrectly quoting switches and defaulting to `Documents`.
-- **Folder Picker Service (`/api/choose-folder`)**:
-  - Leverages Tkinter `filedialog.askdirectory` with a withdrawn topmost parent window.
-  - Returns `("CANCEL", None)` if the user dismisses the dialog, terminating immediately without triggering secondary or tertiary Windows Forms popups.
+- **Windows Explorer Launcher (`/api/open-folder`)**: Formats command strings directly (`explorer.exe /select,"<filepath>"`) with `shell=False` rather than passing Python argument lists, preventing Python's `list2cmdline` from incorrectly quoting switches and defaulting to `Documents`.
+- **Folder Picker Service (`/api/choose-folder`)**: Replaces Tkinter and PowerShell STA with PyWebView's native folder dialog (`window.create_file_dialog(webview.FOLDER_DIALOG)`), providing smooth native Windows folder browsing.
+
 
 ### 4.3 `backend/app/task_manager.py` — State Machine & Concurrency Hub
 - **Thread Safety**: Protects shared task maps using internal synchronization and thread-safe queue dispatches (`loop.call_soon_threadsafe`).
@@ -388,68 +442,31 @@ All API communication is served over `http://127.0.0.1:{PORT}` with JSON payload
 
 ---
 
-## 8. Media Extraction, Remuxing & Platform Bypass Engine
+## 8. Media Extraction, Remuxing & Resilient Extraction Engine
 
-```
-                      +-----------------------------+
-                      |   Target URL Submitted      |
-                      +--------------+--------------+
-                                     |
-                                     v
-                      +-----------------------------+
-                      |   Platform Identification   |
-                      |  (RegEx URL Domain Parser)  |
-                      +--------------+--------------+
-                                     |
-                +--------------------+--------------------+
-                |                    |                    |
-                v                    v                    v
-          [ YouTube ]          [ Instagram ]        [ TikTok / X ]
-                |                    |                    |
-                v                    v                    v
-      +-------------------+  +-------------------+  +-------------------+
-      | Web Client Probe  |  | Graph API / Web   |  | Clean HD Stream   |
-      +---------+---------+  +-------------------+  | (No Watermarks)   |
-                |                                   +-------------------+
-        [Bot Challenge?]
-          /           \
-       [Yes]          [No]
-        /               \
-       v                 v
-+---------------+  +---------------+
-| Auto-Probe    |  | Extract Stream|
-| Local Browser |  | Format Matrix |
-| (Edge/Chrome) |  +-------+-------+
-+-------+-------+          |
-        |                  |
-        +--------+---------+
-                 |
-                 v
-+---------------------------------------------------+
-|               Download Execution                  |
-| 1. DASH Video Stream (AVC / VP9 / AV1)            |
-| 2. DASH Audio Stream (AAC / Opus)                 |
-+------------------------+--------------------------+
-                         |
-                         v
-+---------------------------------------------------+
-|           FFmpeg Post-Processing Muxer            |
-| - Merges streams into universal MP4 container     |
-| - Or transcodes to 320kbps MP3 + embeds cover art |
-+------------------------+--------------------------+
-                         |
-                         v
-+---------------------------------------------------+
-|     Final Sanitized Media Written to Disk         |
-+---------------------------------------------------+
+```mermaid
+graph TD
+    A["Target URL Submitted"] --> B["Platform Identification<br/>(RegEx URL Domain Parser)"]
+    B --> C["YouTube"]
+    B --> D["Instagram"]
+    B --> E["TikTok / X / Others"]
+    C --> F{"Bot Challenge Detected?"}
+    F -- "Yes & Probing Opted In" --> G["Query Local Browser Session<br/>(Read-Only Edge/Chrome)"]
+    F -- "No / Standard" --> H["Extract Stream Format Matrix"]
+    G --> H
+    D --> H
+    E --> H
+    H --> I["Download Video & Audio Streams"]
+    I --> J["FFmpeg Stream-Copy Remuxing (MP4)<br/>or Lossy Transcoding (MP3 320kbps)"]
+    J --> K["Sanitized Media Written to Disk"]
 ```
 
 ### Format Selection Matrix
-- **`best`**: Downloads the absolute highest resolution available (up to 4K/8K 60fps) and merges with highest bitrate audio.
-- **`1080p`**: `bestvideo[height<=1080]+bestaudio/best[height<=1080]`
-- **`720p`**: `bestvideo[height<=720]+bestaudio/best[height<=720]`
-- **`480p`**: `bestvideo[height<=480]+bestaudio/best[height<=480]`
-- **`audio_mp3`**: Extracts best audio stream, transcodes to constant 320kbps MP3 via FFmpeg, writes ID3 tags, and embeds full-resolution thumbnail art.
+- **`best`**: Downloads the absolute highest resolution available (up to 4K/8K 60fps) and merges with highest bitrate audio via lossless stream-copy remuxing (no re-encoding).
+- **`1080p`**: `bestvideo[height<=1080]+bestaudio/best[height<=1080]` (lossless video stream-copy).
+- **`720p`**: `bestvideo[height<=720]+bestaudio/best[height<=720]` (lossless video stream-copy).
+- **`480p`**: `bestvideo[height<=480]+bestaudio/best[height<=480]` (lossless video stream-copy).
+- **`audio_mp3`**: Extracts best audio stream, transcodes to constant 320kbps MP3 via FFmpeg (lossy transcoding), writes ID3 tags, and embeds full-resolution thumbnail art.
 
 ---
 
@@ -458,14 +475,16 @@ All API communication is served over `http://127.0.0.1:{PORT}` with JSON payload
 OmniDownloader employs a fully automated dual-binary release pipeline generating both an enterprise-grade installer and a portable executable.
 
 ### 9.1 PyInstaller Spec Configuration (`omnidownloader.spec`)
-- **Bundle Composition**: Packages Python 3.11 runtime, `uvicorn`, `fastapi`, `starlette`, `sse_starlette`, `yt-dlp`, `platformdirs`, `pillow`, `frontend/` assets, and `backend/app/` logic.
-- **`console=False`**: Compiles in windowed mode. Suppresses black command prompt windows from ever appearing.
-- **`upx=True`**: Applies UPX executable compression to minimize binary footprint.
+- **Bundle Composition**: Packages Python 3.11 runtime, `uvicorn`, `fastapi`, `starlette`, `sse_starlette`, `yt-dlp`, `platformdirs`, `imageio-ffmpeg` binaries, `frontend/` assets, and `backend/app/` logic.
+- **`console=False`**: Compiles in windowed mode. Suppresses command prompt terminal windows from appearing.
+- **`upx=False`**: UPX compression is deliberately disabled to eliminate antivirus heuristic false positives (Windows Defender, etc.). Tradeoff: Standalone binary is slightly larger (~15-20%), but execution reliability and consumer trust are maximized.
 
 ### 9.2 Inno Setup Configuration (`installer.iss`)
 - **Per-User Non-Admin Install (`PrivilegesRequired=lowest`)**:
   - Installs cleanly into `%LOCALAPPDATA%\Programs\OmniDownloader`.
   - Zero Windows UAC / Administrator permission prompts required.
+- **Bundled FFmpeg**:
+  - FFmpeg is bundled directly inside `OmniDownloader.exe` via `imageio-ffmpeg` data files, so the installer delivers full 1080p/4K merging and MP3 conversion capabilities with zero external dependencies.
 - **Windows Integration**:
   - Places shortcut in `{autoprograms}` (Start Menu), indexed immediately by **Windows Search** (<kbd>Win</kbd> + type `"Omni"`).
   - Optional Desktop shortcut.
@@ -474,39 +493,36 @@ OmniDownloader employs a fully automated dual-binary release pipeline generating
 ### 9.3 Automated GitHub Actions CI/CD (`.github/workflows/release.yml`)
 - Triggered automatically on git tags matching `v*` (e.g. `v1.2.3`).
 - Provisions a `windows-latest` virtual environment.
-- Compiles `OmniDownloader.exe` via PyInstaller.
-- Compiles `OmniDownloader-Setup.exe` via Inno Setup 6.
+- Enforces quality gates: `ruff` linting and `pytest backend/tests/` unit/security tests must pass before compiling.
+- Bundles offline fonts via `tools/download_fonts.py`.
+- Compiles `OmniDownloader.exe` via PyInstaller and `OmniDownloader-Setup.exe` via Inno Setup 6.
 - Publishes automated release with release notes and downloadable binary assets.
 
 ---
 
 ## 10. Operational Runbook, Edge Cases & Troubleshooting
 
-### 10.1 Port Already in Use (Port Collisions)
-- **Symptom**: Port 8000 is occupied by another local service (e.g., Docker, dev server).
-- **Behavior**: `launcher.py` automatically detects collision via `socket.connect_ex` and rebinds to the next available port (`8001`, `8002`, etc.). Zero user intervention required.
+### 10.1 Dynamic Port Discovery (Zero Collisions)
+- **Mechanism**: `launcher.py` binds to port `0` (`get_free_port()`), allowing the Windows OS kernel to assign a guaranteed free ephemeral port. Eliminates static port scanning and collision crashes.
 
 ### 10.2 Windows SmartScreen Warning on Newly Compiled Releases
 - **Symptom**: Windows displays *"Windows protected your PC"* when opening a newly downloaded `.exe`.
 - **Cause**: Standard behavior for open-source binaries that have not yet accrued global hash reputation or an expensive commercial EV Code Signing certificate.
 - **Resolution**: Click **"More info"** → **"Run anyway"**.
 
-### 10.3 YouTube "Sign in to Confirm You're Not a Bot"
+### 10.3 YouTube Bot Verification Challenges
 - **Symptom**: YouTube throttles anonymous scraping IP addresses.
-- **Behavior**: OmniDownloader automatically queries local browser profiles (Microsoft Edge or Google Chrome) in read-only mode to pass the verification challenge.
+- **Behavior**: Users can opt in to local browser session probing in **Settings**, or import a standard Netscape `cookies.txt` file. When enabled, OmniDownloader queries local browser profiles (Edge, Chrome, Firefox, Brave) in read-only mode to pass the verification challenge.
 
 ### 10.4 Government or Regional Platform Bans (e.g. TikTok)
 - **Symptom**: `Connection to www.tiktok.com timed out` in regions where the platform is ISP-blocked.
 - **Resolution**: Connect to a VPN (e.g., Cloudflare 1.1.1.1 WARP, ProtonVPN) before fetching details.
 
-### 10.5 High-Resolution Merging Requires FFmpeg
-- **Symptom**: Downloads above 720p or MP3 conversion require FFmpeg.
-- **Resolution**: If FFmpeg is missing, OmniDownloader displays a non-intrusive banner with a 1-click installer button, or the user can run:
-  ```powershell
-  winget install Gyan.FFmpeg
-  ```
+### 10.5 High-Resolution Merging (FFmpeg)
+- **Status**: FFmpeg is bundled out-of-the-box via `imageio-ffmpeg` within both the portable executable and setup installer. High-resolution stream merging (1080p, 4K) and MP3 conversion are functional immediately without manual installations or PATH modifications.
 
 ---
 
 *Authored for the OmniDownloader Project.*  
-*Maintained by Aniket Kumar & DeepMind Agentic Engineering.*
+*Maintained by Aniket Kumar & open-source contributors.*
+

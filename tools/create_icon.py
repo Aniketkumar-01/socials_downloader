@@ -1,21 +1,21 @@
 """
-OmniDownloader - Application Icon Generator
+OmniDownloader - Application Icon Generator (Tool)
 Generates high-resolution multi-size Windows icon (app.ico) and application logo (app.png).
-Loads from artifact source if available, or renders a clean vector-styled gradient glyph with Pillow.
+Saves directly into the assets/ directory.
 """
 
 import os
 import sys
 from pathlib import Path
 
-root_dir = Path(__file__).resolve().parent
+tools_dir = Path(__file__).resolve().parent
+root_dir = tools_dir.parent
 assets_dir = root_dir / "assets"
 assets_dir.mkdir(parents=True, exist_ok=True)
 
 ico_target = assets_dir / "app.ico"
 png_target = assets_dir / "app.png"
 
-# Potential artifact paths from local assets
 artifact_candidates = [
     assets_dir / "raw_icon.png",
     assets_dir / "raw_icon.jpg",
@@ -23,9 +23,8 @@ artifact_candidates = [
 
 def generate_with_pillow():
     try:
-        from PIL import Image, ImageDraw, ImageFilter
+        from PIL import Image, ImageDraw
     except ImportError:
-        print("[WARN] Pillow is not installed. Installing Pillow or using Windows fallback...")
         return False
 
     base_img = None
@@ -33,13 +32,11 @@ def generate_with_pillow():
         if cand.is_file():
             try:
                 base_img = Image.open(cand).convert("RGBA")
-                print(f"[INFO] Loaded source icon from: {cand}")
                 break
-            except Exception as e:
-                print(f"[WARN] Failed to load {cand}: {e}")
+            except Exception:
+                pass
 
     if not base_img:
-        print("[INFO] Rendering native gradient squircle icon from scratch...")
         size = 512
         base_img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(base_img)
@@ -49,14 +46,12 @@ def generate_with_pillow():
         squircle_box = [margin, margin, size - margin, size - margin]
         draw.rounded_rectangle(squircle_box, radius=96, fill=(18, 20, 29, 255), outline=(50, 56, 82, 255), width=3)
 
-        # 2. Glowing cyan/purple download arrow
-        # Arrow stem: center x=256, width=64, top=140, bottom=300
+        # 2. Cyan/indigo download glyph
         stem_left = 224
         stem_right = 288
         stem_top = 130
         stem_bottom = 290
 
-        # Arrow head: triangle pointing down
         arrow_head = [
             (170, 270),  # left tip
             (342, 270),  # right tip
@@ -73,11 +68,10 @@ def generate_with_pillow():
                 width=glow_w
             )
 
-        # Solid arrow stem with cyan/violet
         draw.rounded_rectangle([stem_left, stem_top, stem_right, stem_bottom], radius=10, fill=(99, 102, 241, 255))
         draw.polygon(arrow_head, fill=(56, 189, 248, 255))
 
-        # Bottom baseline / tray
+        # Bottom baseline
         tray_left = 160
         tray_right = 352
         tray_top = 400
@@ -87,12 +81,11 @@ def generate_with_pillow():
     # Resize and export PNG
     png_256 = base_img.resize((256, 256), Image.Resampling.LANCZOS)
     png_256.save(png_target, "PNG")
-    print(f"[SUCCESS] Exported high-res PNG to: {png_target}")
 
     # Export multi-resolution ICO
     icon_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
     png_256.save(ico_target, format="ICO", sizes=icon_sizes)
-    print(f"[SUCCESS] Exported multi-resolution Windows ICO to: {ico_target}")
+    print(f"[SUCCESS] Exported icon to: {ico_target}")
     return True
 
 def generate_with_powershell():

@@ -4,7 +4,7 @@
 
 **Universal High-Performance Video, Audio & Playlist Downloader for Windows**
 
-*Download videos, Reels, Shorts, and entire playlists from YouTube, Instagram, TikTok, X (Twitter), Bilibili, and 1,000+ sites at full quality with real-time SSE progress.*
+*Download videos, Reels, Shorts, and entire playlists from YouTube, Instagram, TikTok, X (Twitter), Bilibili, and 1,000+ sites with real-time SSE progress.*
 
 [![Latest Release](https://img.shields.io/github/v/release/Aniketkumar-01/socials_downloader?color=00f0b5&label=Release&style=flat-square)](https://github.com/Aniketkumar-01/socials_downloader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-00d2ff.svg?style=flat-square)](LICENSE)
@@ -12,7 +12,7 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 
-[**Download Windows Installer**](https://github.com/Aniketkumar-01/socials_downloader/releases/latest) • [**Architecture & Documentation**](DOCUMENTATION.md) • [**Features**](#-features) • [**Quick Start**](#-quick-start-no-python-required) • [**FFmpeg Setup**](#-ffmpeg-setup-for-1080p-4k--mp3) • [**Developer Guide**](#-developer-quick-start) • [**Security**](#-security--privacy-architecture)
+[**Download Windows Installer**](https://github.com/Aniketkumar-01/socials_downloader/releases/latest) • [**Architecture & Documentation**](DOCUMENTATION.md) • [**Features**](#-features) • [**Quick Start**](#-quick-start-no-python-required) • [**FFmpeg Bundling**](#-built-in-ffmpeg-engine-1080p-4k--mp3) • [**Developer Guide**](#-developer-quick-start) • [**Security**](#-security--privacy-architecture)
 
 </div>
 
@@ -30,9 +30,10 @@
 - **🏷️ Original Authentic Titles**: Preserves the original media title, author, and metadata while safely sanitizing Windows-reserved filesystem characters (`:`, `*`, `?`, `"`, `<`, `>`, `|`, `CON`, `NUL`, etc.).
 - **📑 Smart Playlist & Batch Downloader**: Automatically detects playlist URLs, parses constituent videos, provides granular checkboxes for selective item downloading, or downloads entire collections into a dedicated folder with 1 click.
 - **⚡ Real-Time Progress Stream**: Powered by Server-Sent Events (SSE) with millisecond-precision tracking for progress percentage, live download speed (MB/s), downloaded size, and dynamic Estimated Time of Arrival (ETA).
-- **🎨 Sleek Dark Cyber-Obsidian UI**: Modern, responsive user interface built with smooth gradients, vibrant glowing accents, and high-legibility typography (`Outfit` and `JetBrains Mono`).
-- **🛡️ Local-First & Privacy-Focused**: Runs completely locally on your PC. No external tracking, no cloud telemetry, no account registration required.
-- **🍪 Bot Challenge Bypass**: Integrated cookie manager supports importing Netscape `cookies.txt` or auto-probing your local Edge/Chrome browser profiles to seamlessly bypass YouTube "Sign in to confirm you're not a bot" verifications.
+- **🎨 Sleek Dark Cyber-Obsidian UI**: Modern, responsive user interface built with smooth gradients, vibrant glowing accents, and locally bundled typography (`Outfit` and `JetBrains Mono`) for 100% offline support.
+- **🛡️ Local-First & Privacy-Focused**: Runs completely locally on your PC (`127.0.0.1`). No external tracking, no cloud telemetry, no account registration required.
+- **🍪 Resilient Extraction**: Integrated cookie jar manager supports importing Netscape `cookies.txt` and provides privacy-preserving opt-in local browser session probing (Edge, Chrome, Firefox, Brave) to pass verification challenges.
+- **🎬 Built-In FFmpeg Engine**: Bundles FFmpeg out-of-the-box via `imageio-ffmpeg` for lossless video stream-copy remuxing and 320kbps MP3 transcoding without manual installation.
 
 ---
 
@@ -61,38 +62,27 @@ Visit the [**Latest GitHub Releases**](https://github.com/Aniketkumar-01/socials
 
 ---
 
-## 🛠️ FFmpeg Setup (For 1080p, 4K & MP3)
+## 🎬 Built-in FFmpeg Engine (1080p, 4K & MP3)
 
-Modern media platforms (like YouTube) store high-resolution video (1080p, 1440p, 4K) and audio in separate streams. Merging them into a single `.mp4` file or converting audio to `.mp3` requires **FFmpeg**.
+Modern media platforms (like YouTube) store high-resolution video (1080p, 1440p, 4K) and audio in separate DASH streams. Merging them into a single universal `.mp4` container or converting audio to `.mp3` requires **FFmpeg**.
 
-OmniDownloader automatically detects FFmpeg on your system PATH or local application directories.
+OmniDownloader bundles FFmpeg directly inside both the installer and standalone executable via `imageio-ffmpeg`. No manual installation, `winget` commands, or system PATH modifications are required.
 
-### Option A: Install via Windows Package Manager (Recommended)
-Open PowerShell and run:
-```powershell
-winget install Gyan.FFmpeg
-```
-
-### Option B: Install via Chocolatey or Scoop
-```powershell
-choco install ffmpeg
-# or
-scoop install ffmpeg
-```
-
-### Option C: In-App 1-Click Installation
-Click the **Settings** gear icon in OmniDownloader and use the built-in FFmpeg download utility.
+- **Video Merging**: Performed via lossless stream-copy remuxing (no re-encoding, preserving exact original stream quality).
+- **Audio Extraction**: Converted to high-bitrate 320kbps MP3 with embedded metadata and full-resolution thumbnail cover art.
 
 ---
 
-## 🍪 Bypassing YouTube "Sign In to Confirm You're Not a Bot"
+## 🍪 Resilient Extraction & Platform Verification Challenges
 
-YouTube occasionally blocks anonymous requests from automated tools. OmniDownloader provides two foolproof solutions:
+YouTube occasionally blocks anonymous automated requests. OmniDownloader provides two reliable solutions:
 
-1. **Option 1 (Easiest)**: In the format selection card, open the **Authentication / Cookies** dropdown and choose your installed browser (e.g. `Edge`, `Chrome`, or `Firefox`). OmniDownloader will automatically use your existing browser session.
+1. **Option 1 (Opt-In Local Browser Probing)**: 
+   - Open **Settings** in OmniDownloader and toggle **Allow Local Browser Session Probing** (default is OFF for user privacy).
+   - In the format selection card, choose your installed browser (e.g. `Edge`, `Chrome`, `Firefox`, `Brave`). OmniDownloader queries your existing browser session in read-only mode to pass the verification challenge.
 2. **Option 2 (Persistent `cookies.txt`)**: 
    - Export your cookies using any standard browser extension (such as *Get cookies.txt LOCALLY* for Chrome/Edge/Firefox).
-   - Click the **Cookies / Auth** button in OmniDownloader and upload your exported `cookies.txt`.
+   - Upload your exported `cookies.txt` through the app.
    - Your cookies are stored securely on your local PC in `%LOCALAPPDATA%\OmniDownloader\cookies.txt` and never transmitted anywhere else.
 
 ---
@@ -124,8 +114,8 @@ git clone https://github.com/Aniketkumar-01/socials_downloader.git
 cd socials_downloader
 ```
 
-### 2. Run with 1-Click Launcher
-Double-click `start.bat` (or execute `.\start.ps1` in PowerShell). This script will:
+### 2. Run with Automated Bootstrap Script
+Execute `.\scripts\start.ps1` in PowerShell. This script will:
 1. Automatically create a Python virtual environment (`venv`).
 2. Install all required dependencies from `backend/requirements.txt`.
 3. Launch the application in a standalone native desktop window.
@@ -143,8 +133,6 @@ pip install -r backend/requirements.txt
 python launcher.py
 ```
 
-The web console will be accessible at: `http://localhost:8000`
-
 ---
 
 ## 🏗️ Building Windows Binaries Locally
@@ -152,11 +140,11 @@ The web console will be accessible at: `http://localhost:8000`
 To compile your own standalone executable (`OmniDownloader.exe`) or Inno Setup installer (`OmniDownloader-Setup.exe`):
 
 1. Ensure **Inno Setup 6** is installed (install via `winget install JRSoftware.InnoSetup` or `choco install innosetup`).
-2. Run the build script:
-   ```cmd
-   build_installer.bat
+2. Run the unified build script:
+   ```powershell
+   .\scripts\build.ps1 -Target All
    ```
-   *(Or run `build_exe.bat` for only the standalone portable `.exe`)*.
+   *(Or specify `-Target Exe` or `-Target Installer`)*.
 3. Your compiled artifacts will be output directly into the `dist\` folder:
    - `dist\OmniDownloader-Setup.exe`
    - `dist\OmniDownloader.exe`
@@ -166,10 +154,11 @@ To compile your own standalone executable (`OmniDownloader.exe`) or Inno Setup i
 ## 🔒 Security & Privacy Architecture
 
 OmniDownloader is engineered with strict local security safeguards:
-- **Localhost-Only Binding**: Backend server strictly binds to `127.0.0.1`, ignoring external network interfaces.
-- **Dynamic Authentication Token**: All `/api/*` endpoints require a cryptographic `X-Auth-Token` generated at startup to prevent unauthorized browser tab access.
+- **Localhost-Only Binding**: Backend server strictly binds to `127.0.0.1` on a dynamically assigned ephemeral port (port 0).
+- **Session Authentication Token**: All `/api/*` endpoints require a cryptographic `X-Omni-Token` generated at launcher startup. Requests without a valid token are rejected with `403 Forbidden`.
+- **Host Header Validation**: Rejects requests whose `Host` header does not match `127.0.0.1:{port}` or `localhost:{port}`, mitigating DNS rebinding attacks.
 - **Cross-Site Attack Protection**: Requests with external `Origin` headers or `Sec-Fetch-Site: cross-site` are blocked with `403 Forbidden`.
-- **Command Injection Prevention**: File launch and directory inspection calls use `os.startfile()` and token-safe `explorer.exe` process arguments without shell expansion (`shell=False`).
+- **Command Injection Prevention**: Subprocess calls strictly enforce `shell=False` and list-based arguments. Windows Explorer reveals format switch strings safely without shell expansion.
 - **Path Traversal Guards**: Strict containment checks ensure all disk operations and file retrieval requests are confined within the user's active downloads folder.
 - **Input Bounding**: Hard limits on URL lengths (2048 chars), directory paths (1000 chars), and playlist items (500 items ceiling) protect system memory against denial-of-service abuse.
 - **Zero Telemetry**: No third-party analytics, ads, or external cloud requests.
@@ -179,51 +168,58 @@ OmniDownloader is engineered with strict local security safeguards:
 ## 📂 Project Structure
 
 ```
-d:/AG/yt/
+OmniDownloader/
+├── .github/
+│   └── workflows/
+│       └── release.yml          # GitHub Actions CI/CD (lint, test, build matrix)
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI application, REST endpoints & SSE streams
-│   │   ├── downloader.py        # yt-dlp metadata extraction & format resolution
+│   │   ├── main.py              # FastAPI app, REST endpoints, token & Host middleware
+│   │   ├── downloader.py        # yt-dlp metadata extraction & resilient fallback logic
 │   │   ├── task_manager.py      # Async background download manager & progress hooks
-│   │   ├── models.py            # Pydantic schemas, validation & length bounds
+│   │   ├── models.py            # Pydantic schemas, validation, task & settings models
 │   │   └── config.py            # Local storage paths, settings & filename sanitization
 │   ├── tests/
 │   │   ├── test_downloader.py  # Unit tests for metadata and extraction logic
-│   │   ├── test_hardening.py   # Security test suite (tokens, origins, path traversal)
+│   │   ├── test_hardening.py   # Security test suite (tokens, Host rebinding, traversal)
 │   │   └── test_quality.py     # Quality tier selection & file size estimation tests
 │   └── requirements.txt         # Pinned backend dependencies
 ├── frontend/
-│   ├── index.html               # Main semantic HTML5 interface
 │   ├── css/
 │   │   └── styles.css           # Premium cyber-obsidian responsive styles
-│   └── js/
-│       ├── app.js               # UI interaction controller & state management
-│       ├── api.js               # REST client with auth token synchronization
-│       └── progress.js          # Real-time SSE progress monitor & fallback poller
-├── .github/
-│   └── workflows/
-│       └── release.yml          # GitHub Actions workflow for automated Windows builds
-├── launcher.py                  # Self-healing Windows desktop app launcher
+│   ├── fonts/                   # Bundled offline fonts (Outfit & JetBrains Mono)
+│   ├── js/
+│   │   ├── app.js               # UI interaction controller & settings modal
+│   │   ├── api.js               # REST client with auth token synchronization
+│   │   └── progress.js          # Real-time SSE progress monitor & fallback poller
+│   └── index.html               # Semantic HTML5 single-page application
+├── scripts/
+│   ├── build.ps1                # Unified build script (Exe & Installer)
+│   ├── release.ps1              # Unified release script (stage, commit, tag, push)
+│   └── start.ps1                # 1-Click developer bootstrap script
+├── tools/
+│   ├── create_icon.py           # Asset generator for app.ico
+│   └── download_fonts.py        # Offline font asset downloader
+├── examples/
+│   └── cookies.txt.example      # Safe Netscape cookies template example
+├── assets/
+│   └── app.ico                  # Application icon
+├── .gitignore                   # Git ignore rules
+├── DOCUMENTATION.md             # Comprehensive technical architecture manual
+├── installer.iss                # Inno Setup 6 installer script
+├── launcher.py                  # Standalone desktop bootstrap launcher
+├── LICENSE                      # MIT Open Source License
 ├── omnidownloader.spec          # PyInstaller executable build specification
-├── installer.iss                # Inno Setup 6 Windows installer compiler script
-├── create_icon.py               # Vector-style high-resolution Windows icon generator
-├── start.bat                    # 1-click Windows quick launcher
-├── start.ps1                    # PowerShell quick launcher
-├── build_installer.bat          # 1-click local installer build script
-├── build_exe.bat                # 1-click local standalone EXE build script
-├── publish_release.bat          # 1-click Git release publisher & tagger
-├── push_to_github.bat           # 1-click Git sync & release manager
-├── cookies.txt.example          # Safe Netscape cookies template example
-└── LICENSE                      # MIT Open Source License
+└── README.md                    # Repository landing page and user guide
 ```
 
 ---
 
-## ⚖️ Legal Disclaimer & Fair Use Notice
+## ⚖️ Legal / Responsible Use
 
-OmniDownloader is an open-source software tool intended strictly for personal, educational, and fair use purposes (such as offline archival of content you own, have created, or have explicit permission to download). 
+OmniDownloader is an open-source utility designed for personal archival, educational research, and fair use of media content you have lawful rights or explicit permission to access. 
 
-Users are solely and independently responsible for ensuring compliance with applicable copyright laws, local regulations, and the respective platform's Terms of Service. OmniDownloader is not affiliated with, endorsed by, or sponsored by YouTube, Meta (Instagram/Facebook), TikTok (ByteDance), X Corp, Bilibili, or any other media provider.
+Users are solely and independently responsible for ensuring full compliance with applicable copyright laws, local regulations, and the respective platform's Terms of Service. OmniDownloader is not affiliated with, endorsed by, or sponsored by YouTube, Meta (Instagram/Facebook), TikTok (ByteDance), X Corp, Bilibili, or any other media provider.
 
 ---
 

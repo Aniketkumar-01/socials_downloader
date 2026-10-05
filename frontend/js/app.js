@@ -9,7 +9,8 @@ import {
   chooseFolder,
   syncAuthToken,
   getSystemStatus,
-  installFfmpeg
+  fetchSettings,
+  updateSettings
 } from "./api.js";
 import { ProgressTracker } from "./progress.js";
 
@@ -38,11 +39,14 @@ const errorTechDetails = document.getElementById("error-tech-details");
 const errorRawText = document.getElementById("error-raw-text");
 const btnDismissError = document.getElementById("btn-dismiss-error");
 
-const prerequisitesBanner = document.getElementById("prerequisites-banner");
-const btnInstallFfmpeg = document.getElementById("btn-install-ffmpeg");
-const btnInstallFfmpegText = document.getElementById("btn-install-ffmpeg-text");
-const btnCopyWinget = document.getElementById("btn-copy-winget");
-const btnDismissPrereq = document.getElementById("btn-dismiss-prereq");
+// Settings Modal Elements
+const btnOpenSettings = document.getElementById("btn-open-settings");
+const settingsModal = document.getElementById("settings-modal");
+const btnCloseSettingsModal = document.getElementById("btn-close-settings-modal");
+const settingsDownloadDir = document.getElementById("settings-download-dir");
+const btnSettingsBrowse = document.getElementById("btn-settings-browse");
+const toggleCookieProbing = document.getElementById("toggle-cookie-probing");
+const btnSaveSettings = document.getElementById("btn-save-settings");
 
 const mediaCard = document.getElementById("media-card");
 const mediaThumb = document.getElementById("media-thumb");
@@ -994,166 +998,93 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Prerequisites & FFmpeg Readiness Checker
-async function checkPrerequisites() {
-  if (!prerequisitesBanner) return;
+// Settings Modal and Preferences Management
+async function loadSettings() {
   try {
-    const status = await getSystemStatus();
-    if (status && status.ffmpeg_installed) {
-      prerequisitesBanner.style.display = "none";
-    } else {
-      prerequisitesBanner.style.display = "flex";
+    const settings = await fetchSettings();
+    if (settings) {
+      if (typeof settings.allow_cookie_probing === "boolean" && toggleCookieProbing) {
+        toggleCookieProbing.checked = settings.allow_cookie_probing;
+      }
+      if (settings.download_dir) {
+        if (folderPathInput) folderPathInput.value = settings.download_dir;
+        if (settingsDownloadDir) settingsDownloadDir.value = settings.download_dir;
+      }
     }
   } catch (err) {
-    console.debug("Prerequisites check notice:", err);
+    console.debug("Could not load settings:", err);
   }
 }
 
-// System Command Permission & Choice Modal Handlers
-const cmdPermissionModal = document.getElementById("cmd-permission-modal");
-const btnCloseCmdModal = document.getElementById("btn-close-cmd-modal");
-const btnModalCopyCmd = document.getElementById("btn-modal-copy-cmd");
-const btnDiyCmd = document.getElementById("btn-diy-cmd");
-const btnGrantPermissionCmd = document.getElementById("btn-grant-permission-cmd");
-const btnGrantPermissionText = document.getElementById("btn-grant-permission-text");
-const cmdToRun = document.getElementById("cmd-to-run");
+function openSettingsModal() {
+  if (!settingsModal) return;
+  if (settingsDownloadDir && folderPathInput) {
+    settingsDownloadDir.value = folderPathInput.value;
+  }
+  loadSettings();
+  settingsModal.style.display = "flex";
+}
 
-function openCmdModal() {
-  if (cmdPermissionModal) {
-    cmdPermissionModal.style.display = "flex";
+function closeSettingsModal() {
+  if (settingsModal) {
+    settingsModal.style.display = "none";
   }
 }
 
-function closeCmdModal() {
-  if (cmdPermissionModal) {
-    cmdPermissionModal.style.display = "none";
-  }
+if (btnOpenSettings) {
+  btnOpenSettings.addEventListener("click", openSettingsModal);
 }
 
-if (btnCloseCmdModal) {
-  btnCloseCmdModal.addEventListener("click", closeCmdModal);
+if (btnCloseSettingsModal) {
+  btnCloseSettingsModal.addEventListener("click", closeSettingsModal);
 }
 
-if (cmdPermissionModal) {
-  cmdPermissionModal.addEventListener("click", (e) => {
-    if (e.target === cmdPermissionModal) closeCmdModal();
+if (settingsModal) {
+  settingsModal.addEventListener("click", (e) => {
+    if (e.target === settingsModal) closeSettingsModal();
   });
 }
 
-async function copyWingetCommand() {
-  const cmd = (cmdToRun && cmdToRun.textContent) || "winget install Gyan.FFmpeg";
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(cmd);
-    } else {
-      const ta = document.createElement("textarea");
-      ta.value = cmd;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
-    }
-    showToast(`Copied to clipboard: '${cmd}'`, "info");
-  } catch (err) {
-    showToast(`Command: ${cmd}`, "info");
-  }
-}
-
-if (btnModalCopyCmd) {
-  btnModalCopyCmd.addEventListener("click", copyWingetCommand);
-}
-
-if (btnDiyCmd) {
-  btnDiyCmd.addEventListener("click", async () => {
-    await copyWingetCommand();
-    showToast("Command copied! Open your PowerShell or CMD terminal and run it whenever you want.", "success");
-    closeCmdModal();
-  });
-}
-
-// Clicking 1-Click Install opens the permission & explanation modal first!
-if (btnInstallFfmpeg) {
-  btnInstallFfmpeg.addEventListener("click", () => {
-    openCmdModal();
-  });
-}
-
-// User grants explicit permission to install in background
-if (btnGrantPermissionCmd) {
-  btnGrantPermissionCmd.addEventListener("click", async () => {
+if (btnSettingsBrowse) {
+  btnSettingsBrowse.addEventListener("click", async () => {
     try {
-      btnGrantPermissionCmd.disabled = true;
-      if (btnGrantPermissionText) {
-        btnGrantPermissionText.textContent = "Installing on your PC (silent background)...";
+      const selected = await chooseFolder();
+      if (selected && settingsDownloadDir) {
+        settingsDownloadDir.value = selected;
       }
-      showToast("Installing FFmpeg locally on your PC (no windows will pop up)...", "info");
-
-      const res = await installFfmpeg();
-      showToast(res.message || "FFmpeg installed successfully!", "success");
-
-      // Visual success confirmation in banner
-      if (prerequisitesBanner) {
-        prerequisitesBanner.classList.add("prereq-ready");
-        const titleEl = prerequisitesBanner.querySelector(".prereq-title");
-        const descEl = document.getElementById("prereq-desc");
-        if (titleEl) titleEl.textContent = "✓ FFmpeg Ready";
-        if (descEl) descEl.textContent = "High-resolution stream merging (1080p, 4K) and MP3 conversion are now active.";
-        if (btnInstallFfmpeg) btnInstallFfmpeg.style.display = "none";
-      }
-
-      closeCmdModal();
-
-      setTimeout(() => {
-        if (prerequisitesBanner) {
-          prerequisitesBanner.style.transition = "all 0.5s ease";
-          prerequisitesBanner.style.opacity = "0";
-          setTimeout(() => {
-            prerequisitesBanner.style.display = "none";
-          }, 500);
-        }
-      }, 4000);
     } catch (err) {
-      console.error("FFmpeg install error:", err);
-      showError(err.message || "Could not install FFmpeg automatically. You can copy the command and run it in terminal.");
-      btnGrantPermissionCmd.disabled = false;
-      if (btnGrantPermissionText) {
-        btnGrantPermissionText.textContent = "Retry Installation";
-      }
+      console.warn("Folder picker error in settings:", err);
     }
   });
 }
 
-// Copy winget command to clipboard
-if (btnCopyWinget) {
-  btnCopyWinget.addEventListener("click", async () => {
-    const cmd = "winget install Gyan.FFmpeg";
+if (btnSaveSettings) {
+  btnSaveSettings.addEventListener("click", async () => {
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(cmd);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = cmd;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-      }
-      showToast("Copied command: 'winget install Gyan.FFmpeg'", "info");
-    } catch (err) {
-      showToast(`Run in terminal: ${cmd}`, "info");
-    }
-  });
-}
+      btnSaveSettings.disabled = true;
+      const newDir = settingsDownloadDir ? settingsDownloadDir.value.trim() : "";
+      const allowProbing = toggleCookieProbing ? toggleCookieProbing.checked : false;
 
-// Dismiss prerequisites banner
-if (btnDismissPrereq) {
-  btnDismissPrereq.addEventListener("click", () => {
-    if (prerequisitesBanner) {
-      prerequisitesBanner.style.display = "none";
+      const updated = await updateSettings({
+        download_dir: newDir || undefined,
+        allow_cookie_probing: allowProbing,
+      });
+
+      if (updated && updated.download_dir && folderPathInput) {
+        folderPathInput.value = updated.download_dir;
+      }
+      showToast("Settings saved successfully", "success");
+      closeSettingsModal();
+    } catch (err) {
+      console.error("Save settings error:", err);
+      showError(err.message || "Failed to save settings");
+    } finally {
+      btnSaveSettings.disabled = false;
     }
   });
 }
 
 // Initialize on load
 initDownloadDir();
-checkPrerequisites();
+loadSettings();
+

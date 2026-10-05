@@ -148,17 +148,15 @@ except Exception as e:
 # --------------------------------------------------------------------------
 # Step 3: Network & Helper Functions
 # --------------------------------------------------------------------------
-def is_port_in_use(port: int) -> bool:
-    """Checks if a local TCP port is already occupied."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('127.0.0.1', port)) == 0
+import secrets
 
-def find_available_port(start_port: int = 8000, max_attempts: int = 50) -> int:
-    """Finds the first available port on localhost."""
-    for p in range(start_port, start_port + max_attempts):
-        if not is_port_in_use(p):
-            return p
-    return start_port
+def get_free_port() -> int:
+    """Binds to port 0 on localhost to let the OS assign a guaranteed free ephemeral port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('127.0.0.1', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
 
 def find_windows_browser_app_executable() -> str | None:
     """Finds Microsoft Edge or Chrome executable on Windows for standalone desktop window mode."""
@@ -236,10 +234,13 @@ def keep_server_alive(port: int, server_thread: threading.Thread):
 # Step 4: Main Application Lifecycle
 # --------------------------------------------------------------------------
 def main():
-    port = find_available_port(8000)
+    session_token = secrets.token_urlsafe(32)
+    os.environ["OMNI_TOKEN"] = session_token
+
+    port = int(os.getenv("PORT", "0")) or get_free_port()
     url = f"http://127.0.0.1:{port}"
     os.environ["PORT"] = str(port)
-    logger.info(f"Selected port {port} for application.")
+    logger.info(f"Selected ephemeral port {port} with secure session token generated.")
 
     # 1. Start Uvicorn backend in background daemon thread
     server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
@@ -296,7 +297,7 @@ def main():
         logger.info(f"Launching standalone app window via: {browser_exe}")
         try:
             # NOTE: DO NOT pass CREATE_NO_WINDOW! Edge is a GUI application.
-            proc = subprocess.Popen(cmd)
+            proc = subprocess.Popen(cmd, shell=False)
             
             # Check if process exits immediately due to browser session delegation/handoff
             try:

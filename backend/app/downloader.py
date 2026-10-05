@@ -385,13 +385,13 @@ def extract_media_info(
         last_error = e
         logger.warning(f"Standard extraction notice: {clean_error_message(str(last_error))}")
 
-    # Step 2: Auto-probe local browsers on user's PC for YouTube if blocked
-    from app.config import COOKIES_FILE, BASE_DIR
+    # Step 2: Probe local browsers on user's PC for YouTube only if user opted in
+    from app.config import COOKIES_FILE, BASE_DIR, is_cookie_probing_allowed
     has_cookies = (cookie_file and Path(cookie_file).exists()) or COOKIES_FILE.exists() or (BASE_DIR / "cookies.txt").exists()
-    if not info and platform == "youtube" and not has_cookies:
+    if not info and platform == "youtube" and not has_cookies and is_cookie_probing_allowed():
         for candidate in ['edge', 'chrome', 'firefox', 'brave']:
             try:
-                logger.info(f"Attempting bot bypass with local PC {candidate} browser session...")
+                logger.info(f"Attempting extraction fallback with local PC {candidate} browser session...")
                 retry_opts = dict(ydl_opts)
                 retry_opts['cookiesfrombrowser'] = (candidate, None, None, None)
                 with yt_dlp.YoutubeDL(retry_opts) as retry_ydl:
@@ -571,10 +571,10 @@ def ensure_ffmpeg_in_path(ffmpeg_exe: str) -> None:
 
 def get_ffmpeg_path() -> Optional[str]:
     """
-    Locates FFmpeg executable from system PATH, bundled imageio-ffmpeg, or standard locations.
+    Locates FFmpeg executable consistently from bundled imageio-ffmpeg package.
     Ensures a canonical 'ffmpeg.exe' is available in USER_DATA_DIR and registered in process PATH.
     """
-    from app.config import BASE_DIR, BACKEND_DIR, USER_DATA_DIR
+    from app.config import USER_DATA_DIR
 
     # 1. Canonical ffmpeg.exe in USER_DATA_DIR
     canonical_ffmpeg = USER_DATA_DIR / "ffmpeg.exe"
@@ -582,15 +582,9 @@ def get_ffmpeg_path() -> Optional[str]:
         ensure_ffmpeg_in_path(str(canonical_ffmpeg))
         return str(canonical_ffmpeg)
 
-    # 2. System PATH
-    sys_ffmpeg = shutil.which("ffmpeg")
-    if sys_ffmpeg:
-        ensure_ffmpeg_in_path(sys_ffmpeg)
-        return sys_ffmpeg
-
     discovered: Optional[str] = None
 
-    # 3. Bundled imageio-ffmpeg binary
+    # 2. Bundled imageio-ffmpeg binary
     try:
         import imageio_ffmpeg
         exe = imageio_ffmpeg.get_ffmpeg_exe()
@@ -606,20 +600,6 @@ def get_ffmpeg_path() -> Optional[str]:
     except Exception as e:
         logger.debug(f"imageio_ffmpeg binary search: {e}")
 
-    # 5. Standard local or Windows directories
-    if not discovered:
-        for cand in [
-            BASE_DIR / "ffmpeg.exe",
-            BACKEND_DIR / "ffmpeg.exe",
-            USER_DATA_DIR / "engine" / "bin" / "ffmpeg.exe",
-            BASE_DIR / "venv" / "Scripts" / "ffmpeg.exe",
-            Path("C:/ffmpeg/bin/ffmpeg.exe"),
-            Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links" / "ffmpeg.exe",
-        ]:
-            if cand.is_file():
-                discovered = str(cand.resolve())
-                break
-
     if discovered:
         try:
             if not canonical_ffmpeg.exists():
@@ -627,7 +607,12 @@ def get_ffmpeg_path() -> Optional[str]:
                 logger.info(f"Initialized canonical FFmpeg binary at: {canonical_ffmpeg}")
             ensure_ffmpeg_in_path(str(canonical_ffmpeg))
             return str(canonical_ffmpeg)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to cache canonical FFmpeg: {e}")
+            ensure_ffmpeg_in_path(discovered)
+            return discovered
+
+    return None
             ensure_ffmpeg_in_path(discovered)
             return discovered
 
