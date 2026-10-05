@@ -23,7 +23,7 @@ echo [3/5] Staging files (.gitignore protects cookies.txt, venv, and build artif
 git add .
 
 echo [4/5] Creating commit...
-git commit -m "feat: standalone Windows exe packaging, automated GitHub releases, and prerequisites FFmpeg alert banner"
+git commit -m "feat: standalone native desktop app mode, YouTube bot check bypass, command permission modal, and venv auto-switch"
 
 echo [5/5] Setting remote and pushing to GitHub...
 git remote remove origin 2>nul

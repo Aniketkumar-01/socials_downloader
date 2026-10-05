@@ -22,6 +22,15 @@ else:
     sys.path.insert(0, str(root_dir / "backend"))
     sys.path.insert(0, str(root_dir))
 
+    # Auto-switch to local virtual environment if dependencies are missing from current python
+    for venv_candidate in [root_dir / "venv" / "Scripts" / "python.exe", root_dir / ".venv" / "Scripts" / "python.exe"]:
+        if venv_candidate.is_file() and Path(sys.executable).resolve() != venv_candidate.resolve():
+            try:
+                import fastapi
+                import uvicorn
+            except ImportError:
+                sys.exit(subprocess.call([str(venv_candidate)] + sys.argv))
+
 import uvicorn
 from app.main import app
 
