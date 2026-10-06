@@ -69,6 +69,36 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Clean up runtime browser profiles on uninstall
-Type: filesandordirs; Name: "{localappdata}\OmniDownloader\AppShellProfile"
-Type: filesandordirs; Name: "{localappdata}\OmniDownloader\DesktopProfile"
+; Completely remove all runtime user data, settings, engine, updates, cookies, logs, and browser profiles
+Type: filesandordirs; Name: "{localappdata}\{#MyAppName}"
+; Completely remove the application installation directory and any generated files
+Type: filesandordirs; Name: "{app}"
+
+[Code]
+// Terminate running instances before uninstallation begins so files are unlocked and not in use
+function InitializeUninstall(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  // Forcefully terminate any running OmniDownloader instances before deleting files
+  Exec('taskkill.exe', '/F /IM {#MyAppExeName} /T', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Sleep(400);
+  Result := True;
+end;
+
+// Purge any remaining directories and runtime cache after uninstaller finishes
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+  AppDir: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    DataDir := ExpandConstant('{localappdata}\{#MyAppName}');
+    if DirExists(DataDir) then
+      DelTree(DataDir, True, True, True);
+    AppDir := ExpandConstant('{app}');
+    if DirExists(AppDir) then
+      DelTree(AppDir, True, True, True);
+  end;
+end;

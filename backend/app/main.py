@@ -1,6 +1,8 @@
 import os
 import sys
 import re
+import time
+import threading
 import asyncio
 import logging
 import secrets
@@ -53,6 +55,41 @@ API_TOKEN = secrets.token_urlsafe(32)
 
 # Windows process creation flag to prevent console/cmd windows from popping up
 NO_WINDOW_FLAG = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000) if os.name == 'nt' else 0
+
+# --------------------------------------------------------------------------
+# Automatic Process Lifetime & Heartbeat Watchdog
+# --------------------------------------------------------------------------
+_last_heartbeat_time = time.time()
+_startup_time = time.time()
+_heartbeat_seen = False
+_watchdog_active = True
+
+def record_heartbeat():
+    global _last_heartbeat_time, _heartbeat_seen
+    _last_heartbeat_time = time.time()
+    _heartbeat_seen = True
+
+def _watchdog_monitor():
+    """
+    Background daemon thread that monitors frontend connectivity.
+    Automatically shuts down the backend process if the browser window
+    is closed or disconnected for more than 8 seconds (after startup grace period).
+    """
+    time.sleep(35.0)  # Startup grace period to allow browser/WebView to load
+    while _watchdog_active:
+        time.sleep(2.0)
+        now = time.time()
+        # If client connected and then stopped heartbeats for > 8 seconds:
+        if _heartbeat_seen and (now - _last_heartbeat_time > 8.0):
+            logger.info("Frontend window closed/disconnected (heartbeat lost for >8s). Terminating background server.")
+            os._exit(0)
+        # If client never connected after 60 seconds total:
+        if not _heartbeat_seen and (now - _startup_time > 60.0):
+            logger.warning("No frontend connected within 60s of startup. Terminating orphaned background server.")
+            os._exit(0)
+
+# Start watchdog in background daemon thread
+threading.Thread(target=_watchdog_monitor, daemon=True).start()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -132,6 +169,7 @@ async def security_and_auth_middleware(request: Request, call_next):
                 }
             )
 
+    record_heartbeat()
     response = await call_next(request)
     return response
 
@@ -856,6 +894,25 @@ async def apply_app_update(req: UpdateApplyRequest):
     except Exception as e:
         logger.error(f"Failed to apply update: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+# --------------------------------------------------------------------------
+# Process Lifetime Management Endpoints
+# --------------------------------------------------------------------------
+@app.post("/api/heartbeat")
+async def api_heartbeat():
+    """Receives periodic frontend ping to keep background process alive."""
+    record_heartbeat()
+    return {"status": "alive"}
+
+@app.api_route("/api/shutdown", methods=["GET", "POST"])
+async def api_shutdown():
+    """Immediately triggers graceful termination of the application process."""
+    logger.info("Received explicit shutdown signal from frontend window. Exiting process...")
+    def _delayed_exit():
+        time.sleep(0.3)
+        os._exit(0)
+    threading.Thread(target=_delayed_exit, daemon=True).start()
+    return {"status": "shutting_down"}
 
 # Mount static frontend assets (css, js) with html=False so index.html hits token injector
 if FRONTEND_DIR.exists():

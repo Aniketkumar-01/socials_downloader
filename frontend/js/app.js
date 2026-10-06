@@ -1514,3 +1514,41 @@ if (btnUpdateCancel) {
 setTimeout(() => {
   handleCheckForUpdates(false);
 }, 3500);
+
+// ==========================================================================
+// Process Lifetime & Window Closure Handlers
+// ==========================================================================
+async function sendHeartbeat() {
+  try {
+    const token = await syncAuthToken();
+    if (token) {
+      await fetch(`/api/heartbeat?token=${encodeURIComponent(token)}`, {
+        method: "POST"
+      });
+    }
+  } catch (_) {}
+}
+
+sendHeartbeat();
+setInterval(sendHeartbeat, 2500);
+
+// Notify backend immediately when the window or tab closes
+window.addEventListener("pagehide", () => {
+  if (window.__AUTH_TOKEN__) {
+    const shutdownUrl = `/api/shutdown?token=${encodeURIComponent(window.__AUTH_TOKEN__)}`;
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(shutdownUrl);
+    } else {
+      fetch(shutdownUrl, { method: "POST", keepalive: true }).catch(() => {});
+    }
+  }
+});
+
+window.addEventListener("beforeunload", () => {
+  if (window.__AUTH_TOKEN__) {
+    const shutdownUrl = `/api/shutdown?token=${encodeURIComponent(window.__AUTH_TOKEN__)}`;
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(shutdownUrl);
+    }
+  }
+});

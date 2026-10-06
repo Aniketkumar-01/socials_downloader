@@ -15,7 +15,7 @@ if exist "desktop.py" del /f /q "desktop.py" 2>nul
 
 echo [2/4] Committing latest updates to main...
 git add -A
-git commit -m "feat(release): v1.2.5 - in-app update checker and 1-click installer"
+git commit -m "feat(release): v1.2.5 - in-app update checker, clean process watchdog, and uninstaller fixes"
 git push origin main
 
 echo.

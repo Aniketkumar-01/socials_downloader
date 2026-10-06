@@ -231,11 +231,46 @@ def keep_server_alive(port: int, server_thread: threading.Thread):
             time.sleep(1.0)
     except (KeyboardInterrupt, SystemExit):
         logger.info("Shutdown signal received.")
+    os._exit(0)
+
+def check_existing_instance() -> Optional[int]:
+    """Checks if an OmniDownloader instance is already active and responding."""
+    for test_port in range(8000, 8010):
+        try:
+            with socket.create_connection(("127.0.0.1", test_port), timeout=0.2):
+                import urllib.request
+                req = urllib.request.Request(f"http://127.0.0.1:{test_port}/api/token")
+                with urllib.request.urlopen(req, timeout=0.5) as r:
+                    if r.status == 200:
+                        return test_port
+        except Exception:
+            continue
+    return None
 
 # --------------------------------------------------------------------------
 # Step 4: Main Application Lifecycle
 # --------------------------------------------------------------------------
 def main():
+    # 0. Single-instance check: If already running, focus existing window and exit immediately
+    existing_port = check_existing_instance()
+    if existing_port:
+        existing_url = f"http://127.0.0.1:{existing_port}"
+        logger.info(f"OmniDownloader is already running on {existing_url}. Opening window and exiting launcher.")
+        browser_exe = find_windows_browser_app_executable()
+        if browser_exe:
+            app_profile = os.path.expandvars(r"%LOCALAPPDATA%\OmniDownloader\AppShellProfile")
+            subprocess.Popen([
+                browser_exe,
+                f"--app={existing_url}",
+                f"--user-data-dir={app_profile}",
+                "--no-first-run",
+                "--no-default-browser-check"
+            ])
+        else:
+            import webbrowser
+            webbrowser.open(existing_url)
+        return
+
     port = find_available_port(8000)
     url = f"http://127.0.0.1:{port}"
     os.environ["PORT"] = str(port)
