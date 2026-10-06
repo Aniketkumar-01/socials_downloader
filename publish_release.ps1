@@ -1,7 +1,7 @@
 # OmniDownloader - PowerShell Git Push & Release Publisher
 param (
-    [string]$Version = "v1.2.5",
-    [string]$Message = "feat(release): v1.2.5 - in-app update checker, clean process watchdog, and uninstaller fixes"
+    [string]$Version = "v1.2.6",
+    [string]$Message = "feat(release): v1.2.6 - in-app update system, process watchdog, and clean uninstaller"
 )
 
 $ErrorActionPreference = "Continue"
