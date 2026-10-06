@@ -96,3 +96,17 @@ class DownloadTaskStatus(BaseModel):
     error_detail: Optional[ErrorDetail] = None
     download_dir: Optional[str] = None
 
+class UpdateDownloadRequest(BaseModel):
+    download_url: str = Field(..., max_length=2048)
+    expected_size: Optional[int] = Field(default=0)
+    version_tag: Optional[str] = Field(default="latest", max_length=50)
+
+    @field_validator("download_url")
+    @classmethod
+    def check_url(cls, v: str) -> str:
+        return validate_http_url(v)
+
+class UpdateApplyRequest(BaseModel):
+    silent: bool = Field(default=True)
+    installer_path: Optional[str] = Field(default=None, max_length=1000)
+

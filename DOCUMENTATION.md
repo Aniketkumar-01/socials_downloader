@@ -1,6 +1,6 @@
 # ⚡ OmniDownloader — Comprehensive Technical Documentation & Architecture Manual
 
-> **Version:** 1.2.4  
+> **Version:** 1.2.5  
 > **Target OS:** Windows 10 / 11 (x64)  
 > **Architecture:** Local-First Micro-Service / Hybrid Desktop Client  
 > **Repository:** [Aniketkumar-01/socials_downloader](https://github.com/Aniketkumar-01/socials_downloader)  
@@ -385,6 +385,14 @@ All API communication is served over `http://127.0.0.1:{PORT}` with JSON payload
 ### 7.6 Windows Explorer Reveal: `POST /api/open-folder`
 - **Query Parameter**: `task_id` (optional)
 - Uses `explorer.exe /select,"<filepath>"` to open Windows Explorer with the specific downloaded file highlighted and selected.
+
+### 7.7 In-App Application Updater
+- **`GET /api/app/version`**: Returns current app version (`1.2.4`) and repository name.
+- **`GET /api/app/update/check`**: Queries GitHub Releases API (cached for 5 minutes). Compares semantic versioning. Returns latest version, release notes, installer asset URL, and size.
+- **`POST /api/app/update/download`**: Streams `OmniDownloader-Setup.exe` into `%LOCALAPPDATA%\OmniDownloader\updates\` in background thread.
+- **`GET /api/app/update/download-progress`**: Returns live telemetry (`percent`, `downloaded_bytes`, `total_bytes`, `speed_str`, `status`).
+- **`POST /api/app/update/apply`**: Spawns Inno Setup installer executable (`/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`) and triggers graceful app termination so binaries can be overwritten and restarted.
+- **`POST /api/app/update/cancel`**: Aborts active update download and cleans temporary `.part` files.
 
 ---
 

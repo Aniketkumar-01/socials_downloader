@@ -223,3 +223,87 @@ export async function installFfmpeg() {
   return await response.json();
 }
 
+export async function getAppVersion() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/app/version`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to retrieve app version");
+  }
+  return await response.json();
+}
+
+export async function checkAppUpdates(force = false) {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/app/update/check?force=${encodeURIComponent(force)}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to check for updates");
+  }
+  return await response.json();
+}
+
+export async function startAppUpdateDownload(downloadUrl, expectedSize = 0, versionTag = "latest") {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/app/update/download`, {
+    method: "POST",
+    headers: getAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({
+      download_url: downloadUrl,
+      expected_size: expectedSize,
+      version_tag: versionTag,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to initiate update download");
+  }
+  return await response.json();
+}
+
+export async function getAppUpdateProgress() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/app/update/download-progress`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to get update progress");
+  }
+  return await response.json();
+}
+
+export async function cancelAppUpdate() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/app/update/cancel`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  return await response.json();
+}
+
+export async function applyAppUpdate(installerPath = null, silent = true) {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/app/update/apply`, {
+    method: "POST",
+    headers: getAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({
+      installer_path: installerPath,
+      silent: silent,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to execute installer");
+  }
+  return await response.json();
+}
+

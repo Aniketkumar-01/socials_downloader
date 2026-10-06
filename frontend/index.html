@@ -38,6 +38,14 @@
       </div>
 
       <div class="header-utilities">
+        <button type="button" id="btn-check-updates" class="utility-btn btn-update-check" title="Check for application updates">
+          <svg class="update-btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span id="update-btn-label">Check for Updates</span>
+          <span id="update-badge-dot" class="update-badge-dot" style="display: none;" title="New version available"></span>
+        </button>
+
         <div class="server-node active" id="server-status-indicator" title="Connected to local FastAPI backend">
           <span class="pulse-dot"></span>
           <span class="node-label">Server Ready</span>
@@ -439,6 +447,106 @@
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           <span id="btn-grant-permission-text">Grant Permission &amp; Install</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Update Modal -->
+  <div id="app-update-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+    <div class="modal-card update-modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-badge update-icon-badge" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="8 17 12 21 16 17"></polyline>
+            <line x1="12" y1="12" x2="12" y2="21"></line>
+            <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
+          </svg>
+        </div>
+        <div class="modal-header-text">
+          <h3 id="update-modal-title" class="modal-title">Application Update Available</h3>
+          <p id="update-modal-subtitle" class="modal-subtitle">A newer version of OmniDownloader is ready to install</p>
+        </div>
+        <button type="button" id="btn-close-update-modal" class="btn-modal-close" aria-label="Close update modal">&times;</button>
+      </div>
+
+      <div class="modal-body update-modal-body">
+        <!-- Version leap row -->
+        <div class="version-leap-row">
+          <div class="version-badge-box">
+            <span class="version-box-label">Current Version</span>
+            <span id="update-current-version" class="version-number current">v1.2.4</span>
+          </div>
+          <div class="version-arrow-col" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </div>
+          <div class="version-badge-box target">
+            <span class="version-box-label">New Release</span>
+            <span id="update-target-version" class="version-number target">v1.2.5</span>
+          </div>
+        </div>
+
+        <div class="update-meta-row">
+          <span id="update-meta-date" class="meta-item">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span id="update-date-text">Published: Recent</span>
+          </span>
+          <span id="update-meta-size" class="meta-item">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span id="update-size-text">Size: ~48 MB</span>
+          </span>
+        </div>
+
+        <!-- Release Notes Section -->
+        <div class="release-notes-wrapper">
+          <div class="notes-header">
+            <span>What's New in This Release:</span>
+          </div>
+          <div id="update-notes-content" class="release-notes-content">
+            <!-- Dynamic release highlights -->
+          </div>
+        </div>
+
+        <!-- In-Modal Download Progress Deck (initially hidden) -->
+        <div id="update-download-deck" class="update-download-deck" style="display: none;">
+          <div class="update-download-header">
+            <span id="update-download-status-label" class="download-status-text">Downloading update package...</span>
+            <span id="update-download-percent-label" class="download-percent-gauge">0%</span>
+          </div>
+          <div class="gauge-track update-gauge-track">
+            <div id="update-download-bar-fill" class="gauge-fill" style="width: 0%;"></div>
+          </div>
+          <div class="update-download-stats">
+            <span id="update-download-bytes-text">0 MB / 0 MB</span>
+            <span id="update-download-speed-text">-- MB/s</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <a id="btn-update-github-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-modal-secondary" title="Open GitHub release page in browser">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          <span>View on GitHub</span>
+        </a>
+
+        <button type="button" id="btn-update-cancel" class="btn-modal-secondary" style="display: none;">
+          Cancel Download
+        </button>
+
+        <button type="button" id="btn-update-later" class="btn-modal-secondary">
+          Later
+        </button>
+
+        <button type="button" id="btn-update-action" class="btn-modal-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="8 17 12 21 16 17"></polyline>
+            <line x1="12" y1="12" x2="12" y2="21"></line>
+            <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
+          </svg>
+          <span id="btn-update-action-text">Download &amp; Install</span>
         </button>
       </div>
     </div>

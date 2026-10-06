@@ -26,6 +26,8 @@ from app.config import (
     COOKIES_FILE,
     ENGINE_DIR,
     MAX_COOKIE_SIZE,
+    APP_VERSION,
+    GITHUB_REPO,
     get_default_download_dir,
     set_download_dir
 )
@@ -34,10 +36,13 @@ from app.models import (
     MediaInfoResponse,
     DownloadRequest,
     DownloadTaskStatus,
-    SetDownloadDirRequest
+    SetDownloadDirRequest,
+    UpdateDownloadRequest,
+    UpdateApplyRequest
 )
 from app.downloader import extract_media_info, MediaExtractionError, map_ytdlp_error
 from app.task_manager import task_manager
+from app.updater import updater
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -67,7 +72,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="OmniDownloader Web App",
     description="Hardened universal video and playlist downloader with real-time SSE progress",
-    version="1.2.4",
+    version=APP_VERSION,
     lifespan=lifespan
 )
 
@@ -795,6 +800,62 @@ async def update_engine():
                 shutil.rmtree(backup_dir)
             except Exception:
                 pass
+
+# --------------------------------------------------------------------------
+# Application Updater Endpoints
+# --------------------------------------------------------------------------
+@app.get("/api/app/version")
+async def get_app_version():
+    """Returns current OmniDownloader application version and repository."""
+    return {
+        "version": APP_VERSION,
+        "repository": GITHUB_REPO
+    }
+
+@app.get("/api/app/update/check")
+async def check_app_update(force: bool = False):
+    """
+    Checks GitHub Releases for new OmniDownloader versions.
+    Supports force parameter to bypass cache.
+    """
+    result = await asyncio.to_thread(updater.check_for_updates, force=force)
+    return result
+
+@app.post("/api/app/update/download")
+async def start_app_update_download(req: UpdateDownloadRequest):
+    """Initiates streaming download of the update installer executable in the background."""
+    result = await asyncio.to_thread(
+        updater.start_download,
+        download_url=req.download_url,
+        expected_size=req.expected_size or 0,
+        version_tag=req.version_tag or "latest"
+    )
+    return result
+
+@app.get("/api/app/update/download-progress")
+async def get_app_update_progress():
+    """Returns current status and telemetry of the update download."""
+    return updater.get_status()
+
+@app.post("/api/app/update/cancel")
+async def cancel_app_update():
+    """Cancels active update download."""
+    return updater.cancel_download()
+
+@app.post("/api/app/update/apply")
+async def apply_app_update(req: UpdateApplyRequest):
+    """
+    Executes the Inno Setup installer and initiates clean application restart.
+    """
+    try:
+        result = updater.apply_update(
+            installer_path=req.installer_path,
+            silent=req.silent
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to apply update: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Mount static frontend assets (css, js) with html=False so index.html hits token injector
 if FRONTEND_DIR.exists():

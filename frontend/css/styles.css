@@ -1799,3 +1799,212 @@ body {
   box-shadow: 0 6px 20px rgba(0, 240, 181, 0.4);
 }
 
+/* ==========================================================================
+   Application In-App Update System & Modal
+   ========================================================================== */
+
+.btn-update-check {
+  position: relative;
+  transition: all var(--duration-fast) ease;
+}
+
+.btn-update-check:hover {
+  border-color: rgba(0, 240, 181, 0.4);
+  color: var(--text-primary);
+  box-shadow: 0 0 12px rgba(0, 240, 181, 0.15);
+}
+
+.btn-update-check.is-checking .update-btn-icon {
+  animation: spin 1s linear infinite;
+  color: var(--accent-primary);
+}
+
+.btn-update-check.has-update {
+  border-color: rgba(0, 240, 181, 0.6);
+  background: rgba(0, 240, 181, 0.08);
+  color: #00f0b5;
+  box-shadow: 0 0 14px rgba(0, 240, 181, 0.25);
+}
+
+.update-badge-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #00f0b5;
+  box-shadow: 0 0 8px #00f0b5, 0 0 14px rgba(0, 240, 181, 0.8);
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.update-modal-card {
+  max-width: 580px;
+  width: 92%;
+  animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.update-icon-badge {
+  background: rgba(0, 240, 181, 0.12);
+  border: 1px solid rgba(0, 240, 181, 0.3);
+  color: #00f0b5;
+  box-shadow: 0 0 16px rgba(0, 240, 181, 0.2);
+}
+
+.version-leap-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.version-badge-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.version-box-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.version-number {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.version-number.current {
+  color: var(--text-secondary);
+}
+
+.version-number.target {
+  color: #00f0b5;
+  text-shadow: 0 0 12px rgba(0, 240, 181, 0.4);
+}
+
+.version-arrow-col {
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+}
+
+.update-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  padding: 0 0.25rem;
+}
+
+.update-meta-row .meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.release-notes-wrapper {
+  background: rgba(10, 13, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.notes-header {
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.release-notes-content {
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  padding-right: 0.5rem;
+}
+
+.release-notes-content ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.release-notes-content li {
+  margin-bottom: 0.35rem;
+}
+
+.release-notes-content code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  color: #38bdf8;
+}
+
+/* In-Modal Download Progress Deck */
+.update-download-deck {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 240, 181, 0.2);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.update-download-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.download-status-text {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.download-percent-gauge {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #00f0b5;
+}
+
+.update-gauge-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.update-download-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+}
+

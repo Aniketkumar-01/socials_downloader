@@ -170,6 +170,12 @@ ENGINE_DIR.mkdir(parents=True, exist_ok=True)
 if str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 
+# Application Version and Remote Update Settings
+APP_VERSION = "1.2.5"
+GITHUB_REPO = "Aniketkumar-01/socials_downloader"
+UPDATES_DIR = USER_DATA_DIR / "updates"
+UPDATES_DIR.mkdir(parents=True, exist_ok=True)
+
 # Persistent Cookie Jar in User Data directory
 COOKIES_FILE = USER_DATA_DIR / "cookies.txt"
 

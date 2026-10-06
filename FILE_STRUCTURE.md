@@ -12,12 +12,14 @@ OmniDownloader/
 │   │   ├── downloader.py                  # yt-dlp core, platform detection, format matrix, auto browser probing, FFmpeg muxer
 │   │   ├── main.py                        # FastAPI REST API, CORS security, SSE endpoints, folder picker, Explorer reveal
 │   │   ├── models.py                      # Pydantic v2 data validation schemas (requests, responses, task models)
-│   │   └── task_manager.py                # Thread-safe task state machine, ThreadPoolExecutor, SSE pub/sub queue, cancellation
+│   │   ├── task_manager.py                # Thread-safe task state machine, ThreadPoolExecutor, SSE pub/sub queue, cancellation
+│   │   └── updater.py                     # GitHub Releases checker, semver parser, background downloader, Inno Setup runner
 │   ├── tests/
 │   │   ├── conftest.py                    # Pytest test fixtures and loopback environment setup
 │   │   ├── test_downloader.py             # Unit tests for platform detection, format parsing, and extraction logic
 │   │   ├── test_hardening.py              # Security tests: path traversal, command injection, Win32 quoting, sanitization
-│   │   └── test_quality.py                # Tests for resolution tiering, audio extraction, and bitrate calculation
+│   │   ├── test_quality.py                # Tests for resolution tiering, audio extraction, and bitrate calculation
+│   │   └── test_updater.py                # Tests for update version comparison, GitHub parsing, and safe execution
 │   └── requirements.txt                   # Backend Python dependencies (FastAPI, Uvicorn, yt-dlp, Pydantic, etc.)
 ├── frontend/
 │   ├── css/
