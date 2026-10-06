@@ -63,29 +63,46 @@ _last_heartbeat_time = time.time()
 _startup_time = time.time()
 _heartbeat_seen = False
 _watchdog_active = True
+_shutdown_timer: Optional[threading.Timer] = None
 
 def record_heartbeat():
-    global _last_heartbeat_time, _heartbeat_seen
+    global _last_heartbeat_time, _heartbeat_seen, _shutdown_timer
     _last_heartbeat_time = time.time()
     _heartbeat_seen = True
+    # Cancel pending shutdown timer if frontend reconnected (e.g. after refresh/F5)
+    if _shutdown_timer is not None:
+        try:
+            _shutdown_timer.cancel()
+            logger.info("Cancelled pending shutdown; frontend heartbeat restored.")
+        except Exception:
+            pass
+        _shutdown_timer = None
 
 def _watchdog_monitor():
     """
     Background daemon thread that monitors frontend connectivity.
-    Automatically shuts down the backend process if the browser window
-    is closed or disconnected for more than 8 seconds (after startup grace period).
+    Safely shuts down the background process if no frontend has communicated
+    for more than 120 seconds AND no active downloads are currently running.
     """
-    time.sleep(35.0)  # Startup grace period to allow browser/WebView to load
+    time.sleep(60.0)  # Generous startup grace period
     while _watchdog_active:
-        time.sleep(2.0)
+        time.sleep(5.0)
         now = time.time()
-        # If client connected and then stopped heartbeats for > 8 seconds:
-        if _heartbeat_seen and (now - _last_heartbeat_time > 8.0):
-            logger.info("Frontend window closed/disconnected (heartbeat lost for >8s). Terminating background server.")
+        # Never terminate if any task is actively downloading or converting
+        has_active = any(
+            t.status not in ("completed", "failed", "cancelled")
+            for t in getattr(task_manager, "tasks", {}).values()
+        )
+        if has_active:
+            continue
+
+        # If client connected and then stopped heartbeats for > 120 seconds:
+        if _heartbeat_seen and (now - _last_heartbeat_time > 120.0):
+            logger.info("Frontend window closed/disconnected (heartbeat lost for >120s). Terminating background server.")
             os._exit(0)
-        # If client never connected after 60 seconds total:
-        if not _heartbeat_seen and (now - _startup_time > 60.0):
-            logger.warning("No frontend connected within 60s of startup. Terminating orphaned background server.")
+        # If client never connected after 180 seconds total:
+        if not _heartbeat_seen and (now - _startup_time > 180.0):
+            logger.warning("No frontend connected within 180s of startup. Terminating orphaned background server.")
             os._exit(0)
 
 # Start watchdog in background daemon thread
@@ -152,8 +169,8 @@ async def security_and_auth_middleware(request: Request, call_next):
                 }
             )
 
-    # 3. Require X-Auth-Token on every /api/* request (except /api/token)
-    if request.url.path.startswith("/api/") and request.url.path != "/api/token":
+    # 3. Require X-Auth-Token on every /api/* request (except /api/token, /api/heartbeat, and /api/shutdown)
+    if request.url.path.startswith("/api/") and request.url.path not in ("/api/token", "/api/heartbeat", "/api/shutdown"):
         token = request.headers.get("x-auth-token")
         if not token:
             token = request.query_params.get("token")
@@ -898,7 +915,7 @@ async def apply_app_update(req: UpdateApplyRequest):
 # --------------------------------------------------------------------------
 # Process Lifetime Management Endpoints
 # --------------------------------------------------------------------------
-@app.post("/api/heartbeat")
+@app.api_route("/api/heartbeat", methods=["GET", "POST"])
 async def api_heartbeat():
     """Receives periodic frontend ping to keep background process alive."""
     record_heartbeat()
@@ -906,13 +923,36 @@ async def api_heartbeat():
 
 @app.api_route("/api/shutdown", methods=["GET", "POST"])
 async def api_shutdown():
-    """Immediately triggers graceful termination of the application process."""
-    logger.info("Received explicit shutdown signal from frontend window. Exiting process...")
-    def _delayed_exit():
-        time.sleep(0.3)
+    """
+    Called when frontend window unloads or closes.
+    Schedules a 15-second grace shutdown. If the user was just refreshing (F5),
+    the reloaded page sends a heartbeat and cancels this timer within ~1 second.
+    If the window was actually closed, the process terminates after 15 seconds.
+    """
+    global _shutdown_timer
+    logger.info("Received window unload notification. Scheduling 15s grace termination...")
+    if _shutdown_timer is not None:
+        try:
+            _shutdown_timer.cancel()
+        except Exception:
+            pass
+
+    def _do_grace_exit():
+        # Check if tasks are active before terminating
+        has_active = any(
+            t.status not in ("completed", "failed", "cancelled")
+            for t in getattr(task_manager, "tasks", {}).values()
+        )
+        if has_active:
+            logger.info("Active download in progress; deferring auto-shutdown.")
+            return
+        logger.info("Window closed and no reconnection within 15s grace period. Terminating process cleanly.")
         os._exit(0)
-    threading.Thread(target=_delayed_exit, daemon=True).start()
-    return {"status": "shutting_down"}
+
+    _shutdown_timer = threading.Timer(15.0, _do_grace_exit)
+    _shutdown_timer.daemon = True
+    _shutdown_timer.start()
+    return {"status": "scheduled", "grace_seconds": 15}
 
 # Mount static frontend assets (css, js) with html=False so index.html hits token injector
 if FRONTEND_DIR.exists():

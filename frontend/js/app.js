@@ -413,28 +413,44 @@ urlInput.addEventListener("input", (e) => {
   updatePlatformHighlights(e.target.value);
 });
 
-// Paste button handler
-btnPaste.addEventListener("click", async () => {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) {
-      urlInput.value = text.trim();
-      updatePlatformHighlights(urlInput.value);
-      urlInput.focus();
+// Paste button handler with robust fallback and visual feedback
+if (btnPaste) {
+  btnPaste.addEventListener("click", async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          urlInput.value = text.trim();
+          updatePlatformHighlights(urlInput.value);
+          if (btnClear) btnClear.style.display = "flex";
+          urlInput.focus();
+          showToast("Pasted from clipboard", "info", 1500);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Direct clipboard read blocked by browser permissions:", err);
     }
-  } catch (err) {
-    console.warn("Clipboard access denied or unavailable:", err);
-  }
-});
 
-// URL Form Submission
-urlForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+    // Graceful fallback for restricted/sandboxed browser environments
+    urlInput.focus();
+    urlInput.select();
+    showToast("Clipboard permission restricted. Press Ctrl+V to paste.", "info", 3000);
+  });
+}
+
+// Unified URL Submission Handler
+async function handleUrlSubmission(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   clearError();
 
-  const url = urlInput.value.trim();
+  const url = (urlInput.value || "").trim();
   if (!url) {
     showError("Please enter a valid video or playlist URL.");
+    urlInput.focus();
     return;
   }
 
@@ -453,7 +469,18 @@ urlForm.addEventListener("submit", async (e) => {
   } finally {
     setLoading(false);
   }
-});
+}
+
+if (urlForm) {
+  urlForm.addEventListener("submit", handleUrlSubmission);
+}
+if (btnSubmit) {
+  btnSubmit.addEventListener("click", (e) => {
+    if (urlForm) {
+      handleUrlSubmission(e);
+    }
+  });
+}
 
 // Update dynamic quality size badge based on selected option
 function updateQualityBadge() {
@@ -1521,34 +1548,45 @@ setTimeout(() => {
 async function sendHeartbeat() {
   try {
     const token = await syncAuthToken();
-    if (token) {
-      await fetch(`/api/heartbeat?token=${encodeURIComponent(token)}`, {
-        method: "POST"
-      });
+    const url = token ? `/api/heartbeat?token=${encodeURIComponent(token)}` : "/api/heartbeat";
+    const res = await fetch(url, { method: "POST" });
+    if (res.ok) {
+      const serverStatusIndicator = document.getElementById("server-status-indicator");
+      if (serverStatusIndicator && !serverStatusIndicator.classList.contains("active")) {
+        serverStatusIndicator.classList.add("active");
+        const label = serverStatusIndicator.querySelector(".node-label");
+        if (label) label.textContent = "Server Ready";
+      }
     }
-  } catch (_) {}
+  } catch (_) {
+    const serverStatusIndicator = document.getElementById("server-status-indicator");
+    if (serverStatusIndicator && serverStatusIndicator.classList.contains("active")) {
+      serverStatusIndicator.classList.remove("active");
+      const label = serverStatusIndicator.querySelector(".node-label");
+      if (label) label.textContent = "Reconnecting...";
+    }
+  }
 }
 
+// Initial ping + 3.0s recurring interval
 sendHeartbeat();
-setInterval(sendHeartbeat, 2500);
+setInterval(sendHeartbeat, 3000);
 
-// Notify backend immediately when the window or tab closes
-window.addEventListener("pagehide", () => {
-  if (window.__AUTH_TOKEN__) {
-    const shutdownUrl = `/api/shutdown?token=${encodeURIComponent(window.__AUTH_TOKEN__)}`;
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(shutdownUrl);
-    } else {
-      fetch(shutdownUrl, { method: "POST", keepalive: true }).catch(() => {});
-    }
+// Ping immediately whenever window or tab regains focus or visibility
+window.addEventListener("focus", sendHeartbeat);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    sendHeartbeat();
   }
 });
 
-window.addEventListener("beforeunload", () => {
-  if (window.__AUTH_TOKEN__) {
-    const shutdownUrl = `/api/shutdown?token=${encodeURIComponent(window.__AUTH_TOKEN__)}`;
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(shutdownUrl);
-    }
+// Notify backend with 15s grace period when window closes
+window.addEventListener("pagehide", () => {
+  const token = window.__AUTH_TOKEN__ || "";
+  const shutdownUrl = `/api/shutdown?token=${encodeURIComponent(token)}`;
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(shutdownUrl);
+  } else {
+    fetch(shutdownUrl, { method: "POST", keepalive: true }).catch(() => {});
   }
 });
