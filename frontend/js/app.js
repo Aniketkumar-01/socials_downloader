@@ -1,7 +1,11 @@
 import { 
   fetchMediaInfo, 
+  fetchBatchMediaInfo,
   startDownload, 
   cancelTask,
+  pauseTask,
+  resumeTask,
+  getAppVersion,
   openDownloadsFolder, 
   openFile,
   getDownloadDir,
@@ -21,6 +25,9 @@ import { ProgressTracker } from "./progress.js";
 // DOM Elements
 const urlForm = document.getElementById("url-form");
 const urlInput = document.getElementById("url-input");
+const batchInput = document.getElementById("batch-input");
+const btnBatchToggle = document.getElementById("btn-batch-toggle");
+const batchToggleLabel = document.getElementById("batch-toggle-label");
 const btnClear = document.getElementById("btn-clear");
 const btnPaste = document.getElementById("btn-paste");
 const btnSubmit = document.getElementById("btn-submit");
@@ -77,6 +84,11 @@ const progressSpeed = document.getElementById("progress-speed");
 const progressEta = document.getElementById("progress-eta");
 const progressSize = document.getElementById("progress-size");
 const btnCancelDownload = document.getElementById("btn-cancel-download");
+const btnPauseDownload = document.getElementById("btn-pause-download");
+const btnPauseText = document.getElementById("btn-pause-text");
+const iconPause = document.getElementById("icon-pause");
+const iconResume = document.getElementById("icon-resume");
+const appVersionIndicator = document.getElementById("app-version-indicator");
 const progressActions = document.getElementById("progress-actions");
 const btnOpenFolder = document.getElementById("btn-open-folder");
 const btnPlayFile = document.getElementById("btn-play-file");
@@ -88,6 +100,8 @@ let currentTracker = null;
 let currentTaskId = null;
 let allPlaylistSelected = true;
 let isCurrentMediaDownloaded = false;
+let isDownloadPaused = false;
+let isBatchMode = false;
 
 // Helper: Format Bytes to human readable string
 function formatBytes(bytes) {
@@ -348,35 +362,119 @@ function setDownloadButtonState(state, customText = null) {
   }
 }
 
-// Input clear button toggle
-urlInput.addEventListener("input", () => {
-  if (btnClear) {
-    btnClear.style.display = urlInput.value ? "flex" : "none";
+// Batch Mode Toggle Handler
+function setBatchMode(active) {
+  isBatchMode = active;
+  if (isBatchMode) {
+    if (btnBatchToggle) btnBatchToggle.classList.add("active");
+    if (batchToggleLabel) batchToggleLabel.textContent = "Single";
+    if (urlInput) urlInput.style.display = "none";
+    if (batchInput) {
+      batchInput.style.display = "block";
+      if (urlInput && urlInput.value) batchInput.value = urlInput.value;
+      batchInput.focus();
+    }
+    if (btnClear) btnClear.style.display = (batchInput && batchInput.value) ? "flex" : "none";
+  } else {
+    if (btnBatchToggle) btnBatchToggle.classList.remove("active");
+    if (batchToggleLabel) batchToggleLabel.textContent = "Batch";
+    if (batchInput) batchInput.style.display = "none";
+    if (urlInput) {
+      urlInput.style.display = "block";
+      if (batchInput && batchInput.value) {
+        urlInput.value = batchInput.value.split(/[\r\n]+/)[0].trim() || "";
+        updatePlatformHighlights(urlInput.value);
+      }
+      urlInput.focus();
+    }
+    if (btnClear) btnClear.style.display = (urlInput && urlInput.value) ? "flex" : "none";
   }
-});
+}
+
+if (btnBatchToggle) {
+  btnBatchToggle.addEventListener("click", () => {
+    setBatchMode(!isBatchMode);
+  });
+}
+
+// Extract clean URLs from single or multi-line text
+function extractUrlsFromText(rawText) {
+  if (!rawText) return [];
+  const lines = rawText.split(/[\r\n,]+/).map(s => s.trim()).filter(Boolean);
+  const urls = [];
+  for (const line of lines) {
+    const httpMatches = line.match(/https?:\/\/[^\s]+/gi);
+    if (httpMatches) {
+      urls.push(...httpMatches);
+    } else {
+      const token = line.trim();
+      if (token.includes(".") && !token.includes(" ")) {
+        urls.push(`https://${token}`);
+      }
+    }
+  }
+  return [...new Set(urls)];
+}
+
+// Input clear button toggle
+if (urlInput) {
+  urlInput.addEventListener("input", () => {
+    if (btnClear) {
+      btnClear.style.display = urlInput.value ? "flex" : "none";
+    }
+  });
+
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleUrlSubmission(e);
+    }
+  });
+}
+
+if (batchInput) {
+  batchInput.addEventListener("input", () => {
+    if (btnClear) {
+      btnClear.style.display = batchInput.value ? "flex" : "none";
+    }
+  });
+
+  batchInput.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleUrlSubmission(e);
+    }
+  });
+}
 
 if (btnClear) {
   btnClear.addEventListener("click", () => {
-    urlInput.value = "";
+    if (urlInput) urlInput.value = "";
+    if (batchInput) batchInput.value = "";
     btnClear.style.display = "none";
     updatePlatformHighlights("");
-    urlInput.focus();
+    if (isBatchMode && batchInput) batchInput.focus();
+    else if (urlInput) urlInput.focus();
   });
 }
 
 // Global keyboard shortcuts
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    if (urlInput.value) {
-      urlInput.value = "";
-      if (btnClear) btnClear.style.display = "none";
-      updatePlatformHighlights("");
-    }
+    if (urlInput) urlInput.value = "";
+    if (batchInput) batchInput.value = "";
+    if (btnClear) btnClear.style.display = "none";
+    updatePlatformHighlights("");
     clearError();
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
-    urlInput.focus();
-    urlInput.select();
+    if (isBatchMode && batchInput) {
+      batchInput.focus();
+      batchInput.select();
+    } else if (urlInput) {
+      urlInput.focus();
+      urlInput.select();
+    }
   }
 });
 
@@ -409,22 +507,36 @@ function updatePlatformHighlights(url) {
   return detected;
 }
 
-urlInput.addEventListener("input", (e) => {
-  updatePlatformHighlights(e.target.value);
-});
+if (urlInput) {
+  urlInput.addEventListener("input", (e) => {
+    updatePlatformHighlights(e.target.value);
+  });
+}
 
-// Paste button handler with robust fallback and visual feedback
+// Paste button handler with smart batch detection and fallback
 if (btnPaste) {
   btnPaste.addEventListener("click", async () => {
     try {
       if (navigator.clipboard && navigator.clipboard.readText) {
         const text = await navigator.clipboard.readText();
         if (text && text.trim()) {
-          urlInput.value = text.trim();
-          updatePlatformHighlights(urlInput.value);
+          const trimmed = text.trim();
+          const urls = extractUrlsFromText(trimmed);
+          if (urls.length > 1 && !isBatchMode) {
+            setBatchMode(true);
+            if (batchInput) batchInput.value = urls.join("\n");
+            showToast(`Pasted ${urls.length} links into Batch Mode`, "info", 2000);
+          } else if (isBatchMode && batchInput) {
+            batchInput.value = trimmed;
+            showToast("Pasted batch links from clipboard", "info", 1500);
+          } else {
+            if (urlInput) {
+              urlInput.value = trimmed;
+              updatePlatformHighlights(trimmed);
+            }
+            showToast("Pasted from clipboard", "info", 1500);
+          }
           if (btnClear) btnClear.style.display = "flex";
-          urlInput.focus();
-          showToast("Pasted from clipboard", "info", 1500);
           return;
         }
       }
@@ -433,13 +545,16 @@ if (btnPaste) {
     }
 
     // Graceful fallback for restricted/sandboxed browser environments
-    urlInput.focus();
-    urlInput.select();
+    const target = (isBatchMode && batchInput) ? batchInput : urlInput;
+    if (target) {
+      target.focus();
+      target.select();
+    }
     showToast("Clipboard permission restricted. Press Ctrl+V to paste.", "info", 3000);
   });
 }
 
-// Unified URL Submission Handler
+// Unified URL & Batch Submission Handler
 async function handleUrlSubmission(e) {
   if (e) {
     e.preventDefault();
@@ -447,21 +562,38 @@ async function handleUrlSubmission(e) {
   }
   clearError();
 
-  const url = (urlInput.value || "").trim();
-  if (!url) {
-    showError("Please enter a valid video or playlist URL.");
-    urlInput.focus();
+  const currentText = ((isBatchMode && batchInput) ? batchInput.value : (urlInput ? urlInput.value : "")) || "";
+  const extracted = extractUrlsFromText(currentText);
+
+  if (extracted.length === 0) {
+    showError("Please enter at least one valid video or playlist URL.");
+    if (isBatchMode && batchInput) batchInput.focus();
+    else if (urlInput) urlInput.focus();
     return;
   }
 
-  updatePlatformHighlights(url);
+  // If multiple URLs entered in single mode, auto-switch to batch mode
+  if (!isBatchMode && extracted.length > 1) {
+    setBatchMode(true);
+    if (batchInput) batchInput.value = extracted.join("\n");
+    showToast(`Detected ${extracted.length} URLs - switched to Batch Mode`, "info");
+  }
+
   setLoading(true);
   mediaCard.style.display = "none";
   progressCard.style.display = "none";
 
   try {
     const cookieBrowser = cookieSelect ? cookieSelect.value : null;
-    const info = await fetchMediaInfo(url, cookieBrowser);
+    let info;
+    if (extracted.length > 1) {
+      info = await fetchBatchMediaInfo(extracted, cookieBrowser);
+    } else {
+      const singleUrl = extracted[0];
+      if (urlInput) urlInput.value = singleUrl;
+      updatePlatformHighlights(singleUrl);
+      info = await fetchMediaInfo(singleUrl, cookieBrowser);
+    }
     currentMedia = info;
     renderMediaInfo(info);
   } catch (err) {
@@ -475,11 +607,7 @@ if (urlForm) {
   urlForm.addEventListener("submit", handleUrlSubmission);
 }
 if (btnSubmit) {
-  btnSubmit.addEventListener("click", (e) => {
-    if (urlForm) {
-      handleUrlSubmission(e);
-    }
-  });
+  btnSubmit.addEventListener("click", handleUrlSubmission);
 }
 
 // Update dynamic quality size badge based on selected option
@@ -532,6 +660,10 @@ function renderMediaInfo(info) {
     platformBadge.style.color = "#00f2fe";
     platformBadge.style.borderColor = "rgba(0, 242, 254, 0.3)";
     platformBadge.style.background = "rgba(0, 242, 254, 0.1)";
+  } else if (platformName === "BATCH") {
+    platformBadge.style.color = "#a855f7";
+    platformBadge.style.borderColor = "rgba(168, 85, 247, 0.4)";
+    platformBadge.style.background = "rgba(168, 85, 247, 0.12)";
   } else {
     platformBadge.style.color = "var(--accent-blue)";
     platformBadge.style.borderColor = "rgba(79, 172, 254, 0.3)";
@@ -566,14 +698,15 @@ function renderMediaInfo(info) {
   updateQualityBadge();
 
   if (info.is_playlist) {
-    mediaBadge.textContent = "PLAYLIST";
-    mediaBadge.style.color = "#7928ca";
-    mediaBadge.style.borderColor = "rgba(121, 40, 202, 0.4)";
-    mediaBadge.style.background = "rgba(121, 40, 202, 0.15)";
+    const isBatch = (info.platform === "batch");
+    mediaBadge.textContent = isBatch ? "BATCH" : "PLAYLIST";
+    mediaBadge.style.color = isBatch ? "#a855f7" : "#7928ca";
+    mediaBadge.style.borderColor = isBatch ? "rgba(168, 85, 247, 0.4)" : "rgba(121, 40, 202, 0.4)";
+    mediaBadge.style.background = isBatch ? "rgba(168, 85, 247, 0.15)" : "rgba(121, 40, 202, 0.15)";
     mediaDuration.textContent = `${info.item_count} Items`;
 
     // Render playlist items with item-level size badge
-    playlistCount.textContent = `Playlist Items (${info.item_count})`;
+    playlistCount.textContent = isBatch ? `Batch Items (${info.item_count})` : `Playlist Items (${info.item_count})`;
     playlistItemsList.innerHTML = "";
 
     info.items.forEach((item, index) => {
@@ -656,8 +789,10 @@ function updatePlaylistDownloadButtonCount() {
     });
   }
 
+  const isBatch = currentMedia && currentMedia.platform === "batch";
+  const typeName = isBatch ? "Batch" : "Playlist";
   const sizeText = totalBytes > 0 ? ` • ~${formatBytes(totalBytes)}` : "";
-  const label = `Download Playlist (${selectedCount} Selected${sizeText})`;
+  const label = `Download ${typeName} (${selectedCount} Selected${sizeText})`;
   setDownloadButtonState("ready", label);
   btnDownload.disabled = selectedCount === 0;
 }
@@ -691,6 +826,8 @@ async function executeDownload() {
       url: currentMedia.url,
       isPlaylist: currentMedia.is_playlist,
       selectedVideoIds,
+      batchItems: (currentMedia.platform === "batch") ? currentMedia.items : null,
+      playlistTitle: currentMedia.title,
       quality,
       cookieBrowser,
       downloadDir: downloadDir || null,
@@ -765,7 +902,16 @@ function showProgressView(taskId) {
     progressSize.textContent = lockedTotalFormatted ? `Size: ${lockedTotalFormatted}` : "Size: Calculating...";
   }
 
-  // Display and reset Cancel button
+  // Display and reset Cancel and Pause buttons
+  isDownloadPaused = false;
+  if (btnPauseDownload) {
+    btnPauseDownload.style.display = "inline-flex";
+    btnPauseDownload.classList.remove("is-paused");
+    if (btnPauseText) btnPauseText.textContent = "Pause";
+    if (iconPause) iconPause.style.display = "inline";
+    if (iconResume) iconResume.style.display = "none";
+  }
+
   if (btnCancelDownload) {
     btnCancelDownload.style.display = "inline-flex";
     btnCancelDownload.disabled = false;
@@ -792,6 +938,27 @@ function showProgressView(taskId) {
       progressSpeed.textContent = `Speed: ${data.speed_str || "--"}`;
       progressEta.textContent = `ETA: ${data.eta_str || "--"}`;
 
+      if (data.status === "paused") {
+        isDownloadPaused = true;
+        progressBarFill.style.background = "linear-gradient(90deg, #f59e0b, #fbbf24)";
+        progressSpeed.textContent = "Speed: Paused";
+        if (btnPauseDownload) {
+          btnPauseDownload.classList.add("is-paused");
+          if (btnPauseText) btnPauseText.textContent = "Resume";
+          if (iconPause) iconPause.style.display = "none";
+          if (iconResume) iconResume.style.display = "inline";
+        }
+      } else if (data.status === "downloading" && isDownloadPaused) {
+        isDownloadPaused = false;
+        progressBarFill.style.background = "linear-gradient(90deg, #00d2ff, #00f0b5)";
+        if (btnPauseDownload) {
+          btnPauseDownload.classList.remove("is-paused");
+          if (btnPauseText) btnPauseText.textContent = "Pause";
+          if (iconPause) iconPause.style.display = "inline";
+          if (iconResume) iconResume.style.display = "none";
+        }
+      }
+
       // Update real-time downloaded vs locked total size
       if (progressSize) {
         const dlStr = (data.downloaded_bytes && data.downloaded_bytes > 0) ? formatBytes(data.downloaded_bytes) : null;
@@ -809,19 +976,17 @@ function showProgressView(taskId) {
         progressItemTitle.textContent = data.current_item;
       }
 
-      // Hide cancel button if completed or 100%
+      // Hide cancel & pause buttons if completed or 100%
       if (data.status === "completed" || pct >= 100) {
-        if (btnCancelDownload) {
-          btnCancelDownload.style.display = "none";
-        }
+        if (btnCancelDownload) btnCancelDownload.style.display = "none";
+        if (btnPauseDownload) btnPauseDownload.style.display = "none";
       }
 
       setDownloadButtonState("downloading", `Downloading (${pct.toFixed(0)}%)...`);
     },
     onComplete: (data) => {
-      if (btnCancelDownload) {
-        btnCancelDownload.style.display = "none";
-      }
+      if (btnCancelDownload) btnCancelDownload.style.display = "none";
+      if (btnPauseDownload) btnPauseDownload.style.display = "none";
       progressBarFill.style.width = "100%";
       progressPercentage.textContent = "100%";
       progressSpeed.textContent = "Speed: Complete";
@@ -842,9 +1007,8 @@ function showProgressView(taskId) {
       setDownloadButtonState("completed");
     },
     onCancel: (data) => {
-      if (btnCancelDownload) {
-        btnCancelDownload.style.display = "none";
-      }
+      if (btnCancelDownload) btnCancelDownload.style.display = "none";
+      if (btnPauseDownload) btnPauseDownload.style.display = "none";
       progressBarFill.style.width = "100%";
       progressBarFill.style.background = "#f59e0b";
       progressPercentage.textContent = "Cancelled";
@@ -855,9 +1019,8 @@ function showProgressView(taskId) {
       showToast("Download was cancelled.", "info");
     },
     onError: (err) => {
-      if (btnCancelDownload) {
-        btnCancelDownload.style.display = "none";
-      }
+      if (btnCancelDownload) btnCancelDownload.style.display = "none";
+      if (btnPauseDownload) btnPauseDownload.style.display = "none";
       showError(err);
       progressItemTitle.textContent = "Download failed.";
       progressBarFill.style.background = "#ef4444";
@@ -867,6 +1030,39 @@ function showProgressView(taskId) {
   });
 
   currentTracker.start();
+}
+
+// Pause / Resume Download Click Handler
+if (btnPauseDownload) {
+  btnPauseDownload.addEventListener("click", async () => {
+    if (!currentTaskId) return;
+    try {
+      if (!isDownloadPaused) {
+        await pauseTask(currentTaskId);
+        isDownloadPaused = true;
+        progressBarFill.style.background = "linear-gradient(90deg, #f59e0b, #fbbf24)";
+        progressSpeed.textContent = "Speed: Paused";
+        btnPauseDownload.classList.add("is-paused");
+        if (btnPauseText) btnPauseText.textContent = "Resume";
+        if (iconPause) iconPause.style.display = "none";
+        if (iconResume) iconResume.style.display = "inline";
+        showToast("Download paused.", "info", 1500);
+      } else {
+        await resumeTask(currentTaskId);
+        isDownloadPaused = false;
+        progressBarFill.style.background = "linear-gradient(90deg, #00d2ff, #00f0b5)";
+        progressSpeed.textContent = "Speed: Resuming...";
+        btnPauseDownload.classList.remove("is-paused");
+        if (btnPauseText) btnPauseText.textContent = "Pause";
+        if (iconPause) iconPause.style.display = "inline";
+        if (iconResume) iconResume.style.display = "none";
+        showToast("Download resumed.", "info", 1500);
+      }
+    } catch (err) {
+      console.warn("Pause/resume error:", err);
+      showToast(err.message || "Failed to toggle pause.", "error");
+    }
+  });
 }
 
 // Cancel Download Click Handler - Instant 0ms Feedback
@@ -881,6 +1077,7 @@ if (btnCancelDownload) {
 
     // 2. Immediate visual update to Cancelled state
     btnCancelDownload.style.display = "none";
+    if (btnPauseDownload) btnPauseDownload.style.display = "none";
     progressBarFill.style.width = "100%";
     progressBarFill.style.background = "#f59e0b";
     progressPercentage.textContent = "Cancelled";
@@ -1590,3 +1787,24 @@ window.addEventListener("pagehide", () => {
     fetch(shutdownUrl, { method: "POST", keepalive: true }).catch(() => {});
   }
 });
+
+// ==========================================================================
+// Application Version Display & Click-to-Check Handler
+// ==========================================================================
+async function initAppVersionDisplay() {
+  try {
+    const data = await getAppVersion();
+    if (data && data.version && appVersionIndicator) {
+      appVersionIndicator.textContent = `v${data.version}`;
+    }
+  } catch (_) {}
+}
+
+initAppVersionDisplay();
+
+if (appVersionIndicator) {
+  appVersionIndicator.style.cursor = "pointer";
+  appVersionIndicator.addEventListener("click", () => {
+    handleCheckForUpdates(true);
+  });
+}

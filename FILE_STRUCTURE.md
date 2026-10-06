@@ -32,6 +32,8 @@ OmniDownloader/
 ├── .gitignore                             # Git ignore rules for virtualenvs, caches, media files, and build artifacts
 ├── build_exe.bat                          # Local batch script to compile standalone portable OmniDownloader.exe
 ├── build_installer.bat                    # Local batch script to compile OmniDownloader-Setup.exe using Inno Setup
+├── clean_repo.bat                         # Repository cleanup utility (purges scratch notes, caches, and logs)
+├── clean_repo.ps1                         # PowerShell repository cleanup utility
 ├── cookies.txt.example                    # Example Netscape format cookies template for manual authentication
 ├── create_desktop_shortcut.vbs            # VBScript helper to create desktop shortcut pointing to launcher
 ├── create_icon.py                         # Generates multi-resolution Windows app.ico from vector graphics
@@ -45,9 +47,7 @@ OmniDownloader/
 ├── OmniDownloader.vbs                     # Silent VBScript wrapper to launch without background console windows
 ├── publish_release.bat                    # Windows batch script to stage, commit, tag, and push release to GitHub
 ├── publish_release.ps1                    # PowerShell script to stage, commit, tag, and push release to GitHub
-├── push_to_github.bat                     # Batch script helper to push latest branch commits
-├── push.bat                               # Quick alias batch script to push release
-├── push.ps1                               # Quick alias PowerShell script to run publish_release.ps1
+├── push_to_github.bat                     # Convenience launcher delegating to publish_release.bat
 ├── README.md                              # Public GitHub repository landing page, features, and quick start guide
 ├── start.bat                              # 1-Click developer bootstrap script (creates venv, installs deps, runs launcher)
 └── start.ps1                              # 1-Click PowerShell developer bootstrap script

@@ -30,6 +30,7 @@ function getAuthHeaders(extra = {}) {
 }
 
 export async function fetchMediaInfo(url, cookieBrowser = null) {
+  await syncAuthToken();
   const response = await fetch(`${API_BASE}/api/info`, {
     method: "POST",
     headers: getAuthHeaders({
@@ -55,7 +56,35 @@ export async function fetchMediaInfo(url, cookieBrowser = null) {
   return await response.json();
 }
 
-export async function startDownload({ url, isPlaylist, selectedVideoIds, quality, cookieBrowser = null, downloadDir = null }) {
+export async function fetchBatchMediaInfo(urls, cookieBrowser = null) {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/batch/info`, {
+    method: "POST",
+    headers: getAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({
+      urls,
+      cookie_browser: cookieBrowser === "none" ? "none" : (cookieBrowser || "none"),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    let msg = errorData.message || errorData.detail || `Batch request failed (${response.status})`;
+    const err = new Error(msg);
+    err.code = errorData.code || "UNKNOWN";
+    err.hint = errorData.hint || "";
+    err.source = errorData.source || "platform";
+    err.raw = errorData;
+    throw err;
+  }
+
+  return await response.json();
+}
+
+export async function startDownload({ url, urls = null, isPlaylist, selectedVideoIds, batchItems = null, playlistTitle = null, quality, cookieBrowser = null, downloadDir = null }) {
+  await syncAuthToken();
   const response = await fetch(`${API_BASE}/api/download`, {
     method: "POST",
     headers: getAuthHeaders({
@@ -63,8 +92,11 @@ export async function startDownload({ url, isPlaylist, selectedVideoIds, quality
     }),
     body: JSON.stringify({
       url,
+      urls: urls || undefined,
       is_playlist: isPlaylist,
       selected_video_ids: selectedVideoIds,
+      batch_items: batchItems || undefined,
+      playlist_title: playlistTitle || undefined,
       quality,
       cookie_browser: cookieBrowser === "none" ? "none" : (cookieBrowser || "none"),
       save_to_local_folder: true,
@@ -87,6 +119,7 @@ export async function startDownload({ url, isPlaylist, selectedVideoIds, quality
 }
 
 export async function cancelTask(taskId) {
+  await syncAuthToken();
   const response = await fetch(`${API_BASE}/api/tasks/${encodeURIComponent(taskId)}/cancel`, {
     method: "POST",
     headers: getAuthHeaders(),
@@ -98,7 +131,47 @@ export async function cancelTask(taskId) {
   return await response.json();
 }
 
+export async function pauseTask(taskId) {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/tasks/${encodeURIComponent(taskId)}/pause`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || errorData.detail || "Failed to pause task");
+  }
+  return await response.json();
+}
+
+export async function resumeTask(taskId) {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/tasks/${encodeURIComponent(taskId)}/resume`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || errorData.detail || "Failed to resume task");
+  }
+  return await response.json();
+}
+
+export async function getAppVersion() {
+  await syncAuthToken();
+  try {
+    const response = await fetch(`${API_BASE}/api/app/version`, {
+      headers: getAuthHeaders(),
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (_) {}
+  return { version: "1.2.9" };
+}
+
 export async function openDownloadsFolder(taskId = null) {
+  await syncAuthToken();
   const url = taskId 
     ? `${API_BASE}/api/open-folder?task_id=${encodeURIComponent(taskId)}`
     : `${API_BASE}/api/open-folder`;

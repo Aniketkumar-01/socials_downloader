@@ -1,34 +1,30 @@
 @echo off
 echo ============================================================
-echo   Publishing OmniDownloader v1.2.8 Release to GitHub
+echo   Publishing OmniDownloader v1.2.9 Release to GitHub
 echo ============================================================
 echo.
 
 cd /d "%~dp0"
 
-echo [1/4] Cleaning obsolete scratch and internal development files...
-git rm -rf --cached tasks DESIGN.md PRODUCT.md desktop.py 2>nul
-if exist "tasks" rd /s /q "tasks" 2>nul
-if exist "DESIGN.md" del /f /q "DESIGN.md" 2>nul
-if exist "PRODUCT.md" del /f /q "PRODUCT.md" 2>nul
-if exist "desktop.py" del /f /q "desktop.py" 2>nul
+echo [1/4] Cleaning obsolete scratch, temporary caches, and sensitive files...
+call clean_repo.bat --silent 2>nul
 
 echo [2/4] Committing latest updates to main...
 git add -A
-git commit -m "feat(release): v1.2.8 - fix watchdog timeout, graceful unload, and paste button fallback"
+git commit -m "feat(release): v1.2.9 - pause/resume downloads, batch multi-url downloads, playlist numbering, and UI version pill"
 git push origin main
 
 echo.
-echo [3/4] Tagging release v1.2.8...
-git tag -a v1.2.8 -m "OmniDownloader v1.2.8 - Production Release" -f
+echo [3/4] Tagging release v1.2.9...
+git tag -a v1.2.9 -m "OmniDownloader v1.2.9 - Production Release" -f
 
 echo.
-echo [4/4] Pushing tag v1.2.8 to GitHub...
-git push origin v1.2.8 --force
+echo [4/4] Pushing tag v1.2.9 to GitHub...
+git push origin v1.2.9 --force
 
 echo.
 echo ============================================================
-echo   SUCCESS! Release v1.2.8 is now building on GitHub Actions!
+echo   SUCCESS! Release v1.2.9 is now building on GitHub Actions!
 echo   
 echo   Watch both OmniDownloader-Setup.exe and OmniDownloader.exe
 echo   compile live at:

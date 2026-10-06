@@ -31,6 +31,7 @@
         </div>
         <div class="brand-text">
           <span class="brand-name">OmniDownloader</span>
+          <span class="app-version-pill" id="app-version-indicator" title="OmniDownloader Application Version">v1.2.9</span>
           <span class="engine-pill" id="engine-version-indicator" title="Local yt-dlp extraction engine">
             <span id="engine-badge-text">Engine v2026.08.19</span>
           </span>
@@ -153,7 +154,7 @@
 
       <!-- Command Deck: Primary Input Area -->
       <section class="command-deck" aria-label="Media Ingestion">
-        <form id="url-form" class="ingest-form" onsubmit="return false;">
+        <form id="url-form" class="ingest-form" onsubmit="event.preventDefault(); return false;">
           <div class="input-bay">
             <div class="input-prefix-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -163,20 +164,41 @@
             </div>
 
             <input 
-              type="url" 
+              type="text" 
               id="url-input" 
               class="console-input" 
               placeholder="Paste media or playlist URL (YouTube, Instagram, TikTok, X, Bilibili...)" 
-              required
-              autocomplete="off"
+              autocomplete="off" 
               spellcheck="false"
             >
+
+            <textarea 
+              id="batch-input" 
+              class="batch-textarea" 
+              placeholder="Paste multiple media URLs (one per line, space, or comma separated)..." 
+              autocomplete="off" 
+              spellcheck="false" 
+              rows="3" 
+              style="display: none;"
+            ></textarea>
 
             <button type="button" id="btn-clear" class="btn-input-action btn-clear" title="Clear input (Esc)" style="display: none;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
+            </button>
+
+            <button type="button" id="btn-batch-toggle" class="btn-batch-toggle" title="Toggle Batch Mode for multiple URLs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+              <span id="batch-toggle-label">Batch</span>
             </button>
 
             <button type="button" id="btn-paste" class="btn-paste-dock" title="Paste from clipboard">
@@ -187,7 +209,7 @@
               <span>Paste</span>
             </button>
 
-            <button type="submit" id="btn-submit" class="btn-fetch-trigger">
+            <button type="button" id="btn-submit" class="btn-fetch-trigger">
               <span id="btn-submit-text">Fetch Info</span>
               <div id="btn-spinner" class="fetch-spinner" style="display: none;"></div>
             </button>
@@ -222,7 +244,7 @@
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
               </svg>
-              <span>100% Local PC Processing • Zero Cloud Telemetry</span>
+              <span>OmniDownloader v1.2.9 • 100% Local PC Processing • Zero Cloud Telemetry</span>
             </div>
           </div>
         </form>
@@ -321,6 +343,16 @@
             <div id="progress-item-title" class="telemetry-stream-name">Initializing download...</div>
           </div>
           <div class="telemetry-header-right">
+            <button type="button" id="btn-pause-download" class="btn-pause-download" title="Pause download" style="display: none;">
+              <svg id="icon-pause" width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+              <svg id="icon-resume" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
+              </svg>
+              <span id="btn-pause-text">Pause</span>
+            </button>
             <button type="button" id="btn-cancel-download" class="btn-cancel-download" title="Cancel this download" style="display: none;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>

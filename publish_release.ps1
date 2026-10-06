@@ -1,7 +1,7 @@
 # OmniDownloader - PowerShell Git Push & Release Publisher
 param (
-    [string]$Version = "v1.2.8",
-    [string]$Message = "feat(release): v1.2.8 - fix watchdog timeout, graceful unload, and paste button fallback"
+    [string]$Version = "v1.2.9",
+    [string]$Message = "feat(release): v1.2.9 - pause/resume downloads, batch multi-url downloads, playlist numbering, and UI version pill"
 )
 
 $ErrorActionPreference = "Continue"
@@ -13,13 +13,9 @@ Write-Host "  Publishing OmniDownloader $Version Release to GitHub" -ForegroundC
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# 1. Clean up obsolete scratch and internal development files
-Write-Host "[1/4] Cleaning obsolete scratch and internal development files..." -ForegroundColor Yellow
-git rm -rf --cached tasks DESIGN.md PRODUCT.md desktop.py 2>$null
-if (Test-Path "$ScriptDir\tasks") { Remove-Item -Recurse -Force "$ScriptDir\tasks" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\DESIGN.md") { Remove-Item -Force "$ScriptDir\DESIGN.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\PRODUCT.md") { Remove-Item -Force "$ScriptDir\PRODUCT.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\desktop.py") { Remove-Item -Force "$ScriptDir\desktop.py" -ErrorAction SilentlyContinue }
+# 1. Clean up obsolete scratch, temporary caches, and sensitive files
+Write-Host "[1/4] Cleaning obsolete scratch, temporary caches, and sensitive files..." -ForegroundColor Yellow
+& "$ScriptDir\clean_repo.ps1" -Silent
 
 # 2. Stage and Commit
 Write-Host "[2/4] Committing latest updates to main..." -ForegroundColor Yellow

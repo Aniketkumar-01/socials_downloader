@@ -4,16 +4,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
 # Cleanup obsolete scratch and specification files
-if (Test-Path "$ScriptDir\iterations_done.md") { Remove-Item -Force "$ScriptDir\iterations_done.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\backend\tests\run_1000_iterations.py") { Remove-Item -Force "$ScriptDir\backend\tests\run_1000_iterations.py" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\.pytest_cache") { Remove-Item -Recurse -Force "$ScriptDir\.pytest_cache" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\tasks") { Remove-Item -Recurse -Force "$ScriptDir\tasks" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\SPEC.md") { Remove-Item -Force "$ScriptDir\SPEC.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\ARCHITECTURE.md") { Remove-Item -Force "$ScriptDir\ARCHITECTURE.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\DESIGN.md") { Remove-Item -Force "$ScriptDir\DESIGN.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\PRODUCT.md") { Remove-Item -Force "$ScriptDir\PRODUCT.md" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\desktop.py") { Remove-Item -Force "$ScriptDir\desktop.py" -ErrorAction SilentlyContinue }
-if (Test-Path "$ScriptDir\push.bat") { Remove-Item -Force "$ScriptDir\push.bat" -ErrorAction SilentlyContinue }
+& "$ScriptDir\clean_repo.ps1" -Silent
 
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host "  YouTube Video & Playlist Downloader - Quick Launcher" -ForegroundColor Cyan

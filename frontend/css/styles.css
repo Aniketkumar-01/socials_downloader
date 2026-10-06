@@ -188,6 +188,28 @@ body {
   color: var(--text-primary);
 }
 
+.app-version-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.32);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+  transition: all var(--duration-fast) ease;
+}
+
+.app-version-pill:hover {
+  background: rgba(0, 242, 254, 0.2);
+  border-color: rgba(0, 242, 254, 0.5);
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.25);
+}
+
 .engine-pill {
   display: inline-flex;
   align-items: center;
@@ -728,6 +750,58 @@ body {
   background: var(--bg-surface-hover);
   border-color: var(--border-medium);
   color: var(--text-primary);
+}
+
+.btn-batch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--duration-fast) ease;
+}
+
+.btn-batch-toggle:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.btn-batch-toggle.active {
+  background: rgba(0, 240, 181, 0.14);
+  border-color: rgba(0, 240, 181, 0.45);
+  color: var(--accent-primary);
+  box-shadow: 0 0 10px rgba(0, 240, 181, 0.15);
+}
+
+.batch-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  padding: 0.45rem 0;
+  outline: none;
+  min-width: 0;
+  resize: vertical;
+  min-height: 68px;
+  max-height: 220px;
+}
+
+.batch-textarea::placeholder {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
 }
 
 .hotkey-pill {
@@ -1359,6 +1433,46 @@ body {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.btn-pause-download {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-sm);
+  color: #fbbf24;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 0;
+  transition: all var(--duration-fast) ease;
+}
+
+.btn-pause-download:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #f59e0b;
+  transform: translateY(-1px);
+}
+
+.btn-pause-download:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-pause-download.is-paused {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.btn-pause-download.is-paused:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.24);
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #10b981;
 }
 
 .btn-cancel-download {

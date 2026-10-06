@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled
 
-from app.config import DOWNLOADS_DIR, MAX_DOWNLOAD_WORKERS, USER_DATA_DIR, COOKIES_FILE, get_default_download_dir
+from app.config import DOWNLOADS_DIR, MAX_DOWNLOAD_WORKERS, USER_DATA_DIR, COOKIES_FILE, get_default_download_dir, sanitize_filename
 from app.models import DownloadRequest, DownloadTaskStatus
 from app.downloader import build_ydl_download_options, extract_media_info, map_ytdlp_error
 
@@ -25,6 +25,7 @@ class TaskManager:
         self.tasks: Dict[str, DownloadTaskStatus] = {}
         self.subscribers: Dict[str, List[asyncio.Queue]] = {}
         self.cancelled_tasks: Set[str] = set()
+        self.paused_tasks: Set[str] = set()
         self.last_emit_time: Dict[str, float] = {}
         self.executor = ThreadPoolExecutor(max_workers=MAX_DOWNLOAD_WORKERS)
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -49,6 +50,7 @@ class TaskManager:
             task = self.tasks[task_id]
             if task.status not in ("completed", "failed", "cancelled"):
                 self.cancelled_tasks.add(task_id)
+                self.paused_tasks.discard(task_id)
                 self.update_task_from_thread(
                     task_id,
                     force_notify=True,
@@ -63,6 +65,40 @@ class TaskManager:
 
     def is_cancelled(self, task_id: str) -> bool:
         return task_id in self.cancelled_tasks
+
+    def pause_task(self, task_id: str) -> bool:
+        """Pauses an active download task."""
+        if task_id in self.tasks:
+            task = self.tasks[task_id]
+            if task.status in ("downloading", "fetching", "merging"):
+                self.paused_tasks.add(task_id)
+                self.update_task_from_thread(
+                    task_id,
+                    force_notify=True,
+                    status="paused",
+                    speed_str="Paused",
+                    eta_str="--"
+                )
+                logger.info(f"Task {task_id} paused.")
+                return True
+        return False
+
+    def resume_task(self, task_id: str) -> bool:
+        """Resumes a paused download task."""
+        if task_id in self.paused_tasks:
+            self.paused_tasks.discard(task_id)
+            self.update_task_from_thread(
+                task_id,
+                force_notify=True,
+                status="downloading",
+                speed_str="Resuming..."
+            )
+            logger.info(f"Task {task_id} resumed.")
+            return True
+        return False
+
+    def is_paused(self, task_id: str) -> bool:
+        return task_id in self.paused_tasks
 
     def create_task(self, request: DownloadRequest) -> str:
         task_id = str(uuid.uuid4())[:8]
@@ -170,26 +206,36 @@ class TaskManager:
                     logger.warning(f"Failed to copy cookies for task {task_id}: {c_err}")
                     temp_cookie_path = None
 
-            # 1. Fetch info
-            self.update_task_from_thread(task_id, force_notify=True, status="fetching", current_item="Fetching media info...")
-            
-            cookie_browser_val = request.cookie_browser.value if hasattr(request.cookie_browser, "value") else request.cookie_browser
-            media_info = extract_media_info(
-                request.url,
-                cookie_browser=cookie_browser_val,
-                auto_probe_browsers=request.auto_probe_browsers,
-                cookie_file=temp_cookie_path
-            )
+            # 1. Fetch info or initialize batch items
+            is_multi = request.is_playlist or bool(request.batch_items)
+            if request.batch_items:
+                items_to_download = list(request.batch_items)
+                if request.selected_video_ids:
+                    selected_set = set(request.selected_video_ids)
+                    items_to_download = [item for item in items_to_download if item.id in selected_set]
+                playlist_title = request.playlist_title or f"Batch_{time.strftime('%Y%m%d_%H%M%S')}"
+                media_platform = "batch"
+            else:
+                self.update_task_from_thread(task_id, force_notify=True, status="fetching", current_item="Fetching media info...")
+                
+                cookie_browser_val = request.cookie_browser.value if hasattr(request.cookie_browser, "value") else request.cookie_browser
+                media_info = extract_media_info(
+                    request.url,
+                    cookie_browser=cookie_browser_val,
+                    auto_probe_browsers=request.auto_probe_browsers,
+                    cookie_file=temp_cookie_path
+                )
 
-            if self.is_cancelled(task_id):
-                raise CancelledDownload("Task cancelled after info extraction.")
-            
-            playlist_title = media_info.title if media_info.is_playlist else None
-            items_to_download = media_info.items
+                if self.is_cancelled(task_id):
+                    raise CancelledDownload("Task cancelled after info extraction.")
+                
+                playlist_title = media_info.title if media_info.is_playlist else None
+                items_to_download = list(media_info.items)
+                media_platform = media_info.platform
 
-            if request.is_playlist and request.selected_video_ids:
-                selected_set = set(request.selected_video_ids)
-                items_to_download = [item for item in items_to_download if item.id in selected_set]
+                if request.is_playlist and request.selected_video_ids:
+                    selected_set = set(request.selected_video_ids)
+                    items_to_download = [item for item in items_to_download if item.id in selected_set]
 
             total_items = len(items_to_download)
             self.update_task_from_thread(
@@ -198,22 +244,35 @@ class TaskManager:
                 status="downloading",
                 total_items=total_items,
                 completed_items=0,
-                current_item=f"Starting download of {total_items} item(s)..."
+                current_item=f"Starting download of {total_items} item(s)..." if is_multi else "Starting download..."
             )
 
             downloaded_files: List[str] = []
+            progress_state = {"current_index": 1}
 
             # Progress hook callback
             def progress_hook(d: Dict):
                 if self.is_cancelled(task_id):
                     raise DownloadCancelled("Download cancelled by user.")
 
+                while self.is_paused(task_id):
+                    if self.is_cancelled(task_id):
+                        raise DownloadCancelled("Download cancelled by user.")
+                    time.sleep(0.4)
+
                 status = d.get('status')
                 if status == 'downloading':
                     downloaded = float(d.get('downloaded_bytes') or 0)
                     total = float(d.get('total_bytes') or d.get('total_bytes_estimate') or 1)
-                    percent = min(100.0, max(0.0, (downloaded / total) * 100)) if total > 0 else 0.0
+                    item_percent = min(100.0, max(0.0, (downloaded / total) * 100)) if total > 0 else 0.0
                     
+                    if is_multi and total_items > 1:
+                        c_idx = progress_state["current_index"]
+                        overall_percent = ((c_idx - 1) / total_items * 100.0) + (item_percent / total_items)
+                        percent = min(100.0, max(0.0, overall_percent))
+                    else:
+                        percent = item_percent
+
                     raw_speed = d.get('_speed_str', '')
                     raw_eta = d.get('_eta_str', '')
                     speed = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', str(raw_speed)).strip()
@@ -240,6 +299,11 @@ class TaskManager:
                 if self.is_cancelled(task_id):
                     raise DownloadCancelled("Download cancelled by user.")
 
+                while self.is_paused(task_id):
+                    if self.is_cancelled(task_id):
+                        raise DownloadCancelled("Download cancelled by user.")
+                    time.sleep(0.4)
+
                 pp_name = d.get('postprocessor', '')
                 pp_status = d.get('status', '')
                 if pp_status == 'started' or 'merg' in pp_name.lower() or 'remux' in pp_name.lower():
@@ -261,26 +325,42 @@ class TaskManager:
             ydl_opts = build_ydl_download_options(
                 quality=request.quality,
                 output_dir=target_out_dir,
-                is_playlist=request.is_playlist,
+                is_playlist=is_multi,
                 playlist_title=playlist_title,
-                platform=media_info.platform,
-                cookie_browser=cookie_browser_val,
+                platform=media_platform,
+                cookie_browser=cookie_browser_val if not request.batch_items else (request.cookie_browser.value if hasattr(request.cookie_browser, "value") else request.cookie_browser),
                 cookie_file=temp_cookie_path,
                 progress_hook=progress_hook,
                 postprocessor_hook=postprocessor_hook
             )
 
             # Perform download with yt-dlp
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                if request.is_playlist and request.selected_video_ids:
-                    for idx, item in enumerate(items_to_download, 1):
+            if is_multi:
+                clean_folder_name = sanitize_filename(playlist_title or f"Download_{time.strftime('%Y%m%d_%H%M%S')}")
+                target_folder = target_out_dir / clean_folder_name
+                target_folder.mkdir(parents=True, exist_ok=True)
+
+                for idx, item in enumerate(items_to_download, 1):
+                    progress_state["current_index"] = idx
+
+                    while self.is_paused(task_id):
                         if self.is_cancelled(task_id):
                             raise DownloadCancelled("Download cancelled by user.")
-                        self.update_task_from_thread(
-                            task_id,
-                            current_item=f"({idx}/{total_items}) {item.title}",
-                            completed_items=idx - 1
-                        )
+                        time.sleep(0.4)
+
+                    if self.is_cancelled(task_id):
+                        raise DownloadCancelled("Download cancelled by user.")
+
+                    self.update_task_from_thread(
+                        task_id,
+                        current_item=f"({idx}/{total_items}) {item.title}",
+                        completed_items=idx - 1
+                    )
+
+                    item_opts = dict(ydl_opts)
+                    item_opts['outtmpl'] = {'default': str(target_folder / f"{idx:03d} - %(title).150B [%(id)s].%(ext)s")}
+
+                    with yt_dlp.YoutubeDL(item_opts) as ydl:
                         info = ydl.extract_info(item.url, download=True)
                         if info:
                             if 'requested_downloads' in info and info['requested_downloads']:
@@ -294,8 +374,9 @@ class TaskManager:
                                 downloaded_files.append(str(info['_filename']))
                             else:
                                 downloaded_files.append(str(ydl.prepare_filename(info)))
-                else:
-                    self.update_task_from_thread(task_id, current_item=media_info.title)
+            else:
+                self.update_task_from_thread(task_id, current_item=items_to_download[0].title if items_to_download else (media_info.title if 'media_info' in locals() else "Downloading..."))
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(request.url, download=True)
                     if info:
                         if 'requested_downloads' in info and info['requested_downloads']:

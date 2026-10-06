@@ -9,16 +9,7 @@ echo.
 cd /d "%~dp0"
 
 :: Cleanup obsolete scratch and specification files
-if exist "iterations_done.md" del /f /q "iterations_done.md" 2>nul
-if exist "backend\tests\run_1000_iterations.py" del /f /q "backend\tests\run_1000_iterations.py" 2>nul
-if exist ".pytest_cache" rd /s /q ".pytest_cache" 2>nul
-if exist "tasks" rd /s /q "tasks" 2>nul
-if exist "SPEC.md" del /f /q "SPEC.md" 2>nul
-if exist "ARCHITECTURE.md" del /f /q "ARCHITECTURE.md" 2>nul
-if exist "DESIGN.md" del /f /q "DESIGN.md" 2>nul
-if exist "PRODUCT.md" del /f /q "PRODUCT.md" 2>nul
-if exist "desktop.py" del /f /q "desktop.py" 2>nul
-if exist "push.bat" del /f /q "push.bat" 2>nul
+call clean_repo.bat --silent 2>nul
 
 :: 1. Check Python installation
 where python >nul 2>nul

@@ -14,6 +14,8 @@ def validate_http_url(v: str) -> str:
     if not v or not isinstance(v, str):
         raise ValueError("URL cannot be empty.")
     v = v.strip()
+    if not v.startswith(("http://", "https://")):
+        v = f"https://{v}"
     if len(v) > 2048:
         raise ValueError("URL exceeds maximum length of 2048 characters.")
     parsed = urlparse(v)
@@ -29,6 +31,21 @@ class InfoRequest(BaseModel):
     @classmethod
     def check_url(cls, v: str) -> str:
         return validate_http_url(v)
+
+class BatchInfoRequest(BaseModel):
+    urls: List[str] = Field(..., min_length=1, max_length=100, description="List of media URLs")
+    cookie_browser: Optional[CookieBrowserEnum] = Field(default=CookieBrowserEnum.none)
+
+    @field_validator("urls")
+    @classmethod
+    def check_urls(cls, v: List[str]) -> List[str]:
+        cleaned = []
+        for u in v:
+            if u and isinstance(u, str) and u.strip():
+                cleaned.append(validate_http_url(u.strip()))
+        if not cleaned:
+            raise ValueError("At least one valid URL is required.")
+        return cleaned
 
 class VideoItem(BaseModel):
     id: str
@@ -58,8 +75,11 @@ class MediaInfoResponse(BaseModel):
 
 class DownloadRequest(BaseModel):
     url: str = Field(..., max_length=2048, description="Media URL (http/https only)")
+    urls: Optional[List[str]] = None
     is_playlist: bool = False
     selected_video_ids: Optional[List[str]] = None
+    batch_items: Optional[List[VideoItem]] = None
+    playlist_title: Optional[str] = None
     quality: str = Field(default="best", max_length=50)  # "best", "1080p", "720p", "480p", "audio_mp3"
     save_to_local_folder: bool = True
     cookie_browser: Optional[CookieBrowserEnum] = Field(default=CookieBrowserEnum.none)

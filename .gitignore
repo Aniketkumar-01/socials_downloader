@@ -43,10 +43,14 @@ desktop.ini
 
 # Internal specifications, tasks & scratch files
 tasks/
-SPEC.md
+SPEC*.md
+*.spec.md
 ARCHITECTURE.md
 DESIGN.md
 PRODUCT.md
 iterations_done.md
-push.bat
 desktop.py
+push.bat
+push.ps1
+push_to_github.bat
+
