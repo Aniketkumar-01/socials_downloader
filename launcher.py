@@ -12,6 +12,7 @@ import logging
 import threading
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 # --------------------------------------------------------------------------
 # Windows Mount Point and Symlink Hardening (WinError 448 Mitigation)
