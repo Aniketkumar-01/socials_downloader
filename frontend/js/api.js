@@ -167,7 +167,7 @@ export async function getAppVersion() {
       return await response.json();
     }
   } catch (_) {}
-  return { version: "1.3.3" };
+  return { version: "1.3.4" };
 }
 
 export async function getClipboardText() {
