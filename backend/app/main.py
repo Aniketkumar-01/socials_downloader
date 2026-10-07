@@ -1010,7 +1010,7 @@ async def update_engine():
         # Method 2: Direct PyPI Wheel download (works in frozen EXE and without pip)
         if not updated:
             def _download_and_extract_wheel():
-                req = urllib.request.Request("https://pypi.org/pypi/yt-dlp/json", headers={"User-Agent": "OmniDownloader/1.3.0"})
+                req = urllib.request.Request("https://pypi.org/pypi/yt-dlp/json", headers={"User-Agent": "OmniDownloader/1.3.2"})
                 with urllib.request.urlopen(req, timeout=15) as r:
                     pypi_data = json.loads(r.read().decode("utf-8"))
                 urls = pypi_data.get("urls", [])
@@ -1025,7 +1025,7 @@ async def update_engine():
                 if not whl_url:
                     raise RuntimeError(f"Could not locate yt-dlp wheel package. Pip error: {err_msg}")
 
-                dl_req = urllib.request.Request(whl_url, headers={"User-Agent": "OmniDownloader/1.3.0"})
+                dl_req = urllib.request.Request(whl_url, headers={"User-Agent": "OmniDownloader/1.3.2"})
                 with urllib.request.urlopen(dl_req, timeout=30) as whl_r:
                     raw_bytes = whl_r.read()
 

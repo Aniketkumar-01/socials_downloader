@@ -125,7 +125,7 @@ cd socials_downloader
 ```
 
 ### 2. Run with 1-Click Launcher
-Double-click `start.bat` (or execute `.\start.ps1` in PowerShell). This script will:
+Double-click `start.bat`. This script will:
 1. Automatically create a Python virtual environment (`venv`).
 2. Install all required dependencies from `backend/requirements.txt`.
 3. Launch the application in a standalone native desktop window.
@@ -149,17 +149,25 @@ The web console will be accessible at: `http://localhost:8000`
 
 ## 🏗️ Building Windows Binaries Locally
 
-To compile your own standalone executable (`OmniDownloader.exe`) or Inno Setup installer (`OmniDownloader-Setup.exe`):
+You can compile standalone binaries using PyInstaller and Inno Setup:
 
-1. Ensure **Inno Setup 6** is installed (install via `winget install JRSoftware.InnoSetup` or `choco install innosetup`).
-2. Run the build script:
-   ```cmd
-   build_installer.bat
-   ```
-   *(Or run `build_exe.bat` for only the standalone portable `.exe`)*.
-3. Your compiled artifacts will be output directly into the `dist\` folder:
-   - `dist\OmniDownloader-Setup.exe`
-   - `dist\OmniDownloader.exe`
+```powershell
+# 1. Install dependencies & PyInstaller
+pip install -r backend/requirements.txt pyinstaller pillow
+
+# 2. Generate application icon
+python create_icon.py
+
+# 3. Build standalone portable executable
+pyinstaller --clean omnidownloader.spec
+
+# 4. (Optional) Compile Inno Setup installer
+iscc installer.iss
+```
+
+Compiled binaries will be created directly in `dist\`:
+- `dist\OmniDownloader-Setup.exe`
+- `dist\OmniDownloader.exe`
 
 ---
 
@@ -208,10 +216,6 @@ d:/AG/yt/
 ├── installer.iss                # Inno Setup 6 Windows installer compiler script
 ├── create_icon.py               # Vector-style high-resolution Windows icon generator
 ├── start.bat                    # 1-click Windows quick launcher
-├── start.ps1                    # PowerShell quick launcher
-├── build_installer.bat          # 1-click local installer build script
-├── build_exe.bat                # 1-click local standalone EXE build script
-├── publish_release.bat          # 1-click Git release publisher & tagger
 ├── cookies.txt.example          # Safe Netscape cookies template example
 ├── DOCUMENTATION.md             # Architecture manual & API specifications
 ├── .gitignore                   # Git exclusion rules
