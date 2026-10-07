@@ -64,51 +64,26 @@ NO_WINDOW_FLAG = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000) if os.name 
 _last_heartbeat_time = time.time()
 _startup_time = time.time()
 _heartbeat_seen = False
-_watchdog_active = True
+_watchdog_active = False  # Deactivated per user instruction
 _shutdown_timer: Optional[threading.Timer] = None
 
 def record_heartbeat():
     global _last_heartbeat_time, _heartbeat_seen, _shutdown_timer
     _last_heartbeat_time = time.time()
     _heartbeat_seen = True
-    # Cancel pending shutdown timer if frontend reconnected (e.g. after refresh/F5)
     if _shutdown_timer is not None:
         try:
             _shutdown_timer.cancel()
-            logger.info("Cancelled pending shutdown; frontend heartbeat restored.")
         except Exception:
             pass
         _shutdown_timer = None
 
 def _watchdog_monitor():
-    """
-    Background daemon thread that monitors frontend connectivity.
-    Safely shuts down the background process if no frontend has communicated
-    for more than 120 seconds AND no active downloads are currently running.
-    """
-    time.sleep(60.0)  # Generous startup grace period
-    while _watchdog_active:
-        time.sleep(5.0)
-        now = time.time()
-        # Never terminate if any task is actively downloading or converting
-        has_active = any(
-            t.status not in ("completed", "failed", "cancelled")
-            for t in getattr(task_manager, "tasks", {}).values()
-        )
-        if has_active:
-            continue
+    """Deactivated watchdog monitor stub."""
+    pass
 
-        # If client connected and then stopped heartbeats for > 120 seconds:
-        if _heartbeat_seen and (now - _last_heartbeat_time > 120.0):
-            logger.info("Frontend window closed/disconnected (heartbeat lost for >120s). Terminating background server.")
-            os._exit(0)
-        # If client never connected after 180 seconds total:
-        if not _heartbeat_seen and (now - _startup_time > 180.0):
-            logger.warning("No frontend connected within 180s of startup. Terminating orphaned background server.")
-            os._exit(0)
-
-# Start watchdog in background daemon thread
-threading.Thread(target=_watchdog_monitor, daemon=True).start()
+# Watchdog background monitor deactivated to prevent unexpected server shutdown
+# threading.Thread(target=_watchdog_monitor, daemon=True).start()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -171,8 +146,8 @@ async def security_and_auth_middleware(request: Request, call_next):
                 }
             )
 
-    # 3. Require X-Auth-Token on every /api/* request (except /api/token, /api/heartbeat, and /api/shutdown)
-    if request.url.path.startswith("/api/") and request.url.path not in ("/api/token", "/api/heartbeat", "/api/shutdown"):
+    # 3. Require X-Auth-Token on every /api/* request (except public bootstrap endpoints)
+    if request.url.path.startswith("/api/") and request.url.path not in ("/api/token", "/api/heartbeat", "/api/shutdown", "/api/clipboard"):
         token = request.headers.get("x-auth-token")
         if not token:
             token = request.query_params.get("token")
@@ -287,6 +262,33 @@ async def serve_index():
 async def get_auth_token():
     """Returns local API token to authorized local frontend."""
     return {"token": API_TOKEN}
+
+@app.get("/api/clipboard")
+async def get_clipboard_text():
+    """Returns text currently on the system clipboard (native Windows ctypes fallback)."""
+    text = ""
+    if os.name == 'nt':
+        try:
+            import ctypes
+            CF_UNICODETEXT = 13
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            if user32.OpenClipboard(None):
+                try:
+                    h_mem = user32.GetClipboardData(CF_UNICODETEXT)
+                    if h_mem:
+                        kernel32.GlobalLock.restype = ctypes.c_void_p
+                        p_mem = kernel32.GlobalLock(h_mem)
+                        if p_mem:
+                            try:
+                                text = ctypes.wstring_at(p_mem)
+                            finally:
+                                kernel32.GlobalUnlock(h_mem)
+                finally:
+                    user32.CloseClipboard()
+        except Exception as e:
+            logger.debug(f"Native clipboard query notice: {e}")
+    return {"text": text or ""}
 
 @app.post("/api/info", response_model=MediaInfoResponse)
 async def get_media_info(request: InfoRequest):

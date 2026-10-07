@@ -6,6 +6,7 @@ import {
   pauseTask,
   resumeTask,
   getAppVersion,
+  getClipboardText,
   openDownloadsFolder, 
   openFile,
   getDownloadDir,
@@ -283,20 +284,6 @@ function showError(errOrMsg) {
   errorAlert.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// Helper: Toast Notifications
-export function showToast(msg, type = "info") {
-  if (!toastContainer) return;
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.textContent = msg;
-  toastContainer.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = "0";
-    toast.style.transform = "translateY(10px) scale(0.95)";
-    toast.style.transition = "all 0.25s ease";
-    setTimeout(() => toast.remove(), 250);
-  }, 3200);
-}
 
 // Helper: Clear Error Alert
 function clearError() {
@@ -372,6 +359,8 @@ function setBatchMode(active) {
     if (batchInput) {
       batchInput.style.display = "block";
       if (urlInput && urlInput.value) batchInput.value = urlInput.value;
+      const firstUrl = extractUrlsFromText(batchInput.value)[0] || "";
+      updatePlatformHighlights(firstUrl);
       batchInput.focus();
     }
     if (btnClear) btnClear.style.display = (batchInput && batchInput.value) ? "flex" : "none";
@@ -437,6 +426,8 @@ if (batchInput) {
     if (btnClear) {
       btnClear.style.display = batchInput.value ? "flex" : "none";
     }
+    const firstUrl = extractUrlsFromText(batchInput.value)[0] || "";
+    updatePlatformHighlights(firstUrl);
   });
 
   batchInput.addEventListener("keydown", (e) => {
@@ -513,44 +504,61 @@ if (urlInput) {
   });
 }
 
-// Paste button handler with smart batch detection and fallback
+// Paste button handler with smart batch detection and desktop fallback
 if (btnPaste) {
   btnPaste.addEventListener("click", async () => {
+    let text = "";
+
+    // 1. Try modern browser clipboard API
     try {
       if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim()) {
-          const trimmed = text.trim();
-          const urls = extractUrlsFromText(trimmed);
-          if (urls.length > 1 && !isBatchMode) {
-            setBatchMode(true);
-            if (batchInput) batchInput.value = urls.join("\n");
-            showToast(`Pasted ${urls.length} links into Batch Mode`, "info", 2000);
-          } else if (isBatchMode && batchInput) {
-            batchInput.value = trimmed;
-            showToast("Pasted batch links from clipboard", "info", 1500);
-          } else {
-            if (urlInput) {
-              urlInput.value = trimmed;
-              updatePlatformHighlights(trimmed);
-            }
-            showToast("Pasted from clipboard", "info", 1500);
-          }
-          if (btnClear) btnClear.style.display = "flex";
-          return;
-        }
+        text = await navigator.clipboard.readText();
       }
     } catch (err) {
       console.warn("Direct clipboard read blocked by browser permissions:", err);
     }
 
-    // Graceful fallback for restricted/sandboxed browser environments
+    // 2. Seamless native desktop backend fallback if browser blocked clipboard
+    if (!text || !text.trim()) {
+      try {
+        text = await getClipboardText();
+      } catch (err) {
+        console.warn("Backend clipboard fallback notice:", err);
+      }
+    }
+
+    const trimmed = (text || "").trim();
+    if (trimmed) {
+      const urls = extractUrlsFromText(trimmed);
+      if (urls.length > 1) {
+        setBatchMode(true);
+        if (batchInput) {
+          batchInput.value = urls.join("\n");
+          updatePlatformHighlights(urls[0]);
+        }
+        showToast(`Pasted ${urls.length} links into Batch Mode`, "info", 2000);
+      } else if (isBatchMode && batchInput) {
+        batchInput.value = trimmed;
+        updatePlatformHighlights(trimmed);
+        showToast("Pasted batch links from clipboard", "info", 1500);
+      } else {
+        if (urlInput) {
+          urlInput.value = trimmed;
+          updatePlatformHighlights(trimmed);
+        }
+        showToast("Pasted from clipboard", "info", 1500);
+      }
+      if (btnClear) btnClear.style.display = "flex";
+      return;
+    }
+
+    // 3. Fallback: focus input and inform user
     const target = (isBatchMode && batchInput) ? batchInput : urlInput;
     if (target) {
       target.focus();
       target.select();
     }
-    showToast("Clipboard permission restricted. Press Ctrl+V to paste.", "info", 3000);
+    showToast("Clipboard is empty or inaccessible. Press Ctrl+V to paste.", "info", 3000);
   });
 }
 

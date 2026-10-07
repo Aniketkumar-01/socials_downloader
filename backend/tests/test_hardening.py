@@ -94,6 +94,15 @@ def test_origin_header_allowed():
         assert response.status_code == 200
 
 
+def test_clipboard_endpoint():
+    """Requests to /api/clipboard must be permitted and return a JSON dictionary with text."""
+    response = client.get("/api/clipboard")
+    assert response.status_code == 200
+    data = response.json()
+    assert "text" in data
+    assert isinstance(data["text"], str)
+
+
 # ---------------------------------------------------------------------------
 # 2. Path Safety & Traversal Rejection Tests
 # ---------------------------------------------------------------------------

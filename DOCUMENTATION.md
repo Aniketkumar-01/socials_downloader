@@ -1,6 +1,6 @@
 # ⚡ OmniDownloader — Comprehensive Technical Documentation & Architecture Manual
 
-> **Version:** 1.2.9  
+> **Version:** 1.3.0  
 > **Target OS:** Windows 10 / 11 (x64)  
 > **Architecture:** Local-First Micro-Service / Hybrid Desktop Client  
 > **Repository:** [Aniketkumar-01/socials_downloader](https://github.com/Aniketkumar-01/socials_downloader)  

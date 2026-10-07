@@ -167,7 +167,21 @@ export async function getAppVersion() {
       return await response.json();
     }
   } catch (_) {}
-  return { version: "1.2.9" };
+  return { version: "1.3.0" };
+}
+
+export async function getClipboardText() {
+  await syncAuthToken();
+  try {
+    const response = await fetch(`${API_BASE}/api/clipboard`, {
+      headers: getAuthHeaders(),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return (data && data.text) || "";
+    }
+  } catch (_) {}
+  return "";
 }
 
 export async function openDownloadsFolder(taskId = null) {
@@ -292,18 +306,6 @@ export async function installFfmpeg() {
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.message || err.detail || "Automated installation failed");
-  }
-  return await response.json();
-}
-
-export async function getAppVersion() {
-  await syncAuthToken();
-  const response = await fetch(`${API_BASE}/api/app/version`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || err.detail || "Failed to retrieve app version");
   }
   return await response.json();
 }

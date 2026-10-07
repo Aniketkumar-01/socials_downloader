@@ -1,7 +1,7 @@
 # OmniDownloader - PowerShell Git Push & Release Publisher
 param (
-    [string]$Version = "v1.2.9",
-    [string]$Message = "feat(release): v1.2.9 - pause/resume downloads, batch multi-url downloads, playlist numbering, and UI version pill"
+    [string]$Version = "v1.3.0",
+    [string]$Message = "feat(release): v1.3.0 - fix fetch info and paste button, add batch mode platform detection, and remove watchdog timeout"
 )
 
 $ErrorActionPreference = "Continue"

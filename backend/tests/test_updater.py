@@ -24,7 +24,7 @@ def test_is_version_newer():
     # Newer remote
     assert is_version_newer("v1.2.5", "1.2.4") is True
     assert is_version_newer("2.0.0", "1.9.9") is True
-    assert is_version_newer("1.3.0", "1.2.9") is True
+    assert is_version_newer("1.4.0", "1.3.0") is True
     assert is_version_newer("v1.2.4.1", "1.2.4") is True
 
     # Same or older remote
@@ -45,15 +45,15 @@ def test_get_app_version():
 
 def test_check_update_endpoint_newer_version():
     mock_github_response = {
-        "tag_name": "v1.3.0",
-        "name": "OmniDownloader v1.3.0 - Performance Release",
+        "tag_name": "v1.4.0",
+        "name": "OmniDownloader v1.4.0 - Performance Release",
         "body": "### Changes\n- Faster downloads\n- Updated engine",
-        "html_url": "https://github.com/Aniketkumar-01/socials_downloader/releases/tag/v1.3.0",
+        "html_url": "https://github.com/Aniketkumar-01/socials_downloader/releases/tag/v1.4.0",
         "published_at": "2026-10-06T12:00:00Z",
         "assets": [
             {
                 "name": "OmniDownloader-Setup.exe",
-                "browser_download_url": "https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.3.0/OmniDownloader-Setup.exe",
+                "browser_download_url": "https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.4.0/OmniDownloader-Setup.exe",
                 "size": 50123456
             }
         ]
@@ -69,9 +69,9 @@ def test_check_update_endpoint_newer_version():
         data = response.json()
         assert data["status"] == "success"
         assert data["update_available"] is True
-        assert data["latest_version"] == "1.3.0"
+        assert data["latest_version"] == "1.4.0"
         assert data["current_version"] == APP_VERSION
-        assert data["download_url"] == "https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.3.0/OmniDownloader-Setup.exe"
+        assert data["download_url"] == "https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.4.0/OmniDownloader-Setup.exe"
         assert data["file_size"] == 50123456
 
 def test_check_update_endpoint_already_up_to_date():
