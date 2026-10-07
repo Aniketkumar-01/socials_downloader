@@ -5,7 +5,7 @@
 ; =====================================================================
 
 #define MyAppName "OmniDownloader"
-#define MyAppVersion "1.3.2"
+#define MyAppVersion "1.3.3"
 #define MyAppPublisher "Aniket Kumar"
 #define MyAppURL "https://github.com/Aniketkumar-01/socials_downloader"
 #define MyAppExeName "OmniDownloader.exe"
@@ -39,7 +39,7 @@ WizardStyle=modern
 ; Uninstaller configuration for Windows Settings (Add or Remove Programs)
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
-CloseApplications=yes
+CloseApplications=force
 RestartApplications=no
 
 [Languages]
@@ -74,6 +74,17 @@ Type: filesandordirs; Name: "{localappdata}\{#MyAppName}"
 Type: filesandordirs; Name: "{app}"
 
 [Code]
+// Terminate running instances before installation begins so files are unlocked and not in use
+function InitializeSetup(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  // Forcefully terminate any running OmniDownloader instances before replacing files
+  Exec('taskkill.exe', '/F /IM {#MyAppExeName} /T', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Sleep(500);
+  Result := True;
+end;
+
 // Terminate running instances before uninstallation begins so files are unlocked and not in use
 function InitializeUninstall(): Boolean;
 var

@@ -357,9 +357,9 @@ class AppUpdater:
 
         subprocess.Popen(cmd, creationflags=creationflags, close_fds=True)
 
-        # Schedule application shutdown to release locks on running files
+        # Schedule application shutdown to release locks on running files promptly
         def _delayed_exit():
-            time.sleep(1.5)
+            time.sleep(0.4)
             logger.info("Exiting application for Inno Setup upgrade...")
             # Use os._exit to immediately bypass background thread joins
             os._exit(0)
