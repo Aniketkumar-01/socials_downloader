@@ -284,6 +284,44 @@ body {
   color: var(--text-primary);
 }
 
+.btn-github {
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+
+.btn-github:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
+}
+
+.btn-github svg {
+  fill: currentColor;
+  transition: transform 0.2s ease;
+}
+
+.btn-github:hover svg {
+  transform: scale(1.15);
+}
+
+.footer-github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  font-size: 0.75rem;
+  transition: color var(--duration-fast) ease;
+}
+
+.footer-github-link:hover {
+  color: var(--accent-cyan);
+}
+
+.footer-github-link svg {
+  fill: currentColor;
+}
+
 /* ==========================================================================
    Console Hub & Main Deck
    ========================================================================== */

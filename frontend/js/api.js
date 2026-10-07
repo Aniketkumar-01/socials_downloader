@@ -379,6 +379,9 @@ export async function applyAppUpdate(installerPath = null, silent = true) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.message || err.detail || "Failed to execute installer");
   }
+  return await response.json();
+}
+
 export async function getEngineVersion() {
   await syncAuthToken();
   const response = await fetch(`${API_BASE}/api/engine/version`, {
