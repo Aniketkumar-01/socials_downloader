@@ -24,6 +24,7 @@ AppUpdatesURL={#MyAppURL}/releases
 ; Per-User Installation: Installs to %LOCALAPPDATA%\Programs without Administrator/UAC prompt
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DisableProgramGroupPage=yes
+DisableStartupPrompt=yes
 PrivilegesRequired=lowest
 
 ; Output file name and destination
@@ -64,8 +65,10 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFile
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Universal Video & Playlist Downloader"; Tasks: desktopicon
 
 [Run]
-; Option to launch OmniDownloader immediately after installation completes
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; Launch OmniDownloader after manual interactive installation completes (via checkbox)
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall; Check: not WizardSilent
+; Automatically relaunch OmniDownloader after silent in-app update completes
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait; Check: WizardSilent
 
 [UninstallDelete]
 ; Completely remove all runtime user data, settings, engine, updates, cookies, logs, and browser profiles

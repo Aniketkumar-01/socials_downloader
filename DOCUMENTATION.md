@@ -391,7 +391,7 @@ All API communication is served over `http://127.0.0.1:{PORT}` with JSON payload
 - **`GET /api/app/update/check`**: Queries GitHub Releases API (cached for 5 minutes). Compares semantic versioning. Returns latest version, release notes, installer asset URL, and size.
 - **`POST /api/app/update/download`**: Streams `OmniDownloader-Setup.exe` into `%LOCALAPPDATA%\OmniDownloader\updates\` in background thread.
 - **`GET /api/app/update/download-progress`**: Returns live telemetry (`percent`, `downloaded_bytes`, `total_bytes`, `speed_str`, `status`).
-- **`POST /api/app/update/apply`**: Spawns Inno Setup installer executable (`/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`) and triggers graceful app termination so binaries can be overwritten and restarted.
+- **`POST /api/app/update/apply`**: Spawns Inno Setup installer executable (`/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /SUPPRESSMSGBOXES /SP-`) with automatic application relaunch and process unlocking.
 - **`POST /api/app/update/cancel`**: Aborts active update download and cleans temporary `.part` files.
 
 ---

@@ -345,7 +345,7 @@ class AppUpdater:
         cmd = [str(path_to_run)]
         if silent:
             # Inno Setup flags for unattended upgrade with application replacement
-            cmd.extend(["/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"])
+            cmd.extend(["/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS", "/SUPPRESSMSGBOXES", "/SP-"])
 
         logger.info(f"Applying update with command: {cmd}")
 
