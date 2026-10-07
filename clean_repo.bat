@@ -50,7 +50,31 @@ if exist "backend\tests\run_1000_iterations.py" (
     git rm -f --cached "backend\tests\run_1000_iterations.py" 2>nul
 )
 
-:: 3. Remove obsolete duplicate push scripts
+:: 3. Remove obsolete duplicate scripts, wrappers, and internal notes
+if exist "FILE_STRUCTURE.md" (
+    del /f /q "FILE_STRUCTURE.md" 2>nul
+    git rm -f --cached "FILE_STRUCTURE.md" 2>nul
+)
+if exist "OmniDownloader.bat" (
+    del /f /q "OmniDownloader.bat" 2>nul
+    git rm -f --cached "OmniDownloader.bat" 2>nul
+)
+if exist "OmniDownloader.vbs" (
+    del /f /q "OmniDownloader.vbs" 2>nul
+    git rm -f --cached "OmniDownloader.vbs" 2>nul
+)
+if exist "create_desktop_shortcut.vbs" (
+    del /f /q "create_desktop_shortcut.vbs" 2>nul
+    git rm -f --cached "create_desktop_shortcut.vbs" 2>nul
+)
+if exist "publish_release.ps1" (
+    del /f /q "publish_release.ps1" 2>nul
+    git rm -f --cached "publish_release.ps1" 2>nul
+)
+if exist "clean_repo.ps1" (
+    del /f /q "clean_repo.ps1" 2>nul
+    git rm -f --cached "clean_repo.ps1" 2>nul
+)
 if exist "push.bat" (
     del /f /q "push.bat" 2>nul
     git rm -f --cached "push.bat" 2>nul

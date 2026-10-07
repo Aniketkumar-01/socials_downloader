@@ -89,6 +89,45 @@ def _watchdog_monitor():
 async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     task_manager.set_loop(loop)
+
+    # Repository cleanup: delete non-essential / scratch files
+    try:
+        cleanup_targets = [
+            BASE_DIR / "FILE_STRUCTURE.md",
+            BASE_DIR / "clean_repo.bat",
+            BASE_DIR / "clean_repo.ps1",
+            BASE_DIR / "OmniDownloader.bat",
+            BASE_DIR / "OmniDownloader.vbs",
+            BASE_DIR / "create_desktop_shortcut.vbs",
+            BASE_DIR / "publish_release.ps1",
+            BASE_DIR / "SPEC-app-updater.md",
+            BASE_DIR / "SPEC.md",
+            BASE_DIR / "ARCHITECTURE.md",
+            BASE_DIR / "DESIGN.md",
+            BASE_DIR / "PRODUCT.md",
+            BASE_DIR / "iterations_done.md",
+            BASE_DIR / "desktop.py",
+            BASE_DIR / "push.bat",
+            BASE_DIR / "push.ps1",
+            BASE_DIR / "push_to_github.bat",
+            BASE_DIR / "backend" / "tests" / "run_1000_iterations.py",
+        ]
+        for t in cleanup_targets:
+            if t.is_file():
+                try:
+                    t.unlink(missing_ok=True)
+                    logger.info(f"[CLEANUP] Deleted useless file: {t.name}")
+                except Exception as e:
+                    logger.warning(f"[CLEANUP] Failed to delete {t.name}: {e}")
+
+        for d_name in ["tasks", ".impeccable", ".opencode", ".pytest_cache"]:
+            d_target = BASE_DIR / d_name
+            if d_target.is_dir():
+                shutil.rmtree(str(d_target), ignore_errors=True)
+                logger.info(f"[CLEANUP] Deleted useless directory: {d_name}")
+    except Exception as cleanup_err:
+        logger.warning(f"[CLEANUP] Error during repository cleanup: {cleanup_err}")
+
     from app.downloader import get_ffmpeg_path
     ff = get_ffmpeg_path()
     if ff:

@@ -8,9 +8,6 @@ echo.
 
 cd /d "%~dp0"
 
-:: Cleanup obsolete scratch and specification files
-call clean_repo.bat --silent 2>nul
-
 :: 1. Check Python installation
 where python >nul 2>nul
 if %errorlevel% neq 0 (

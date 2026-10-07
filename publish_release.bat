@@ -11,7 +11,7 @@ call clean_repo.bat --silent 2>nul
 
 echo [2/4] Committing latest updates to main...
 git add -A
-git commit -m "feat(release): v1.3.0 - fix fetch info and paste button, add batch mode platform detection, and remove watchdog timeout"
+git commit -m "feat(release): v1.3.0 - clean repository, dynamic playlist stream sizes, and enhance public repo"
 git push origin main
 
 echo.

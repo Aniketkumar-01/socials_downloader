@@ -321,7 +321,18 @@ function setDownloadButtonState(state, customText = null) {
     btnDownload.disabled = false;
     const isPlaylist = currentMedia && currentMedia.is_playlist;
     const selectedCount = document.querySelectorAll(".playlist-checkbox:checked").length;
-    const defaultText = isPlaylist ? `Download Playlist (${selectedCount} Selected)` : "Download Now";
+    const q = qualitySelect ? qualitySelect.value : "best";
+    let defaultText = "Download Now";
+    if (isPlaylist) {
+      const isBatch = currentMedia && currentMedia.platform === "batch";
+      const typeName = isBatch ? "Batch" : "Playlist";
+      defaultText = `Download ${typeName} (${selectedCount} Selected)`;
+    } else if (currentMedia) {
+      const singleItem = (currentMedia.items && currentMedia.items[0]) || currentMedia;
+      const singleBytes = getItemSizeForQuality(singleItem, q) || (currentMedia.quality_sizes && currentMedia.quality_sizes[q]) || currentMedia.estimated_filesize || currentMedia.filesize;
+      const sizeStr = singleBytes > 0 ? ` • ~${formatBytes(singleBytes)}` : "";
+      defaultText = `Download Video${sizeStr}`;
+    }
     const text = customText || defaultText;
     btnDownload.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -644,10 +655,61 @@ function updateQualityBadge() {
   }
 }
 
+// Helper: Calculate estimated size for a video item based on selected quality
+function getItemSizeForQuality(item, quality = "best") {
+  if (!item) return 0;
+  if (item.quality_sizes && item.quality_sizes[quality]) {
+    return item.quality_sizes[quality];
+  }
+  const baseSize = item.filesize || (item.duration ? Math.round(2000 * 1000 / 8 * item.duration) : 0);
+  if (!baseSize) return 0;
+
+  const ratios = {
+    "best": 1.0,
+    "2160p": 2.2,
+    "4k": 2.2,
+    "1440p": 1.5,
+    "2k": 1.5,
+    "1080p": 1.0,
+    "720p": 0.65,
+    "480p": 0.35,
+    "360p": 0.25,
+    "audio_mp3": 0.15
+  };
+  const ratio = (ratios[quality] !== undefined) ? ratios[quality] : 1.0;
+  return Math.round(baseSize * ratio);
+}
+
+// Helper: Update every individual playlist item's size badge when quality changes
+function updatePlaylistItemSizes() {
+  if (!currentMedia || !currentMedia.items) return;
+  const q = qualitySelect ? qualitySelect.value : "best";
+  const rows = document.querySelectorAll(".playlist-item");
+  rows.forEach(row => {
+    const cb = row.querySelector(".playlist-checkbox");
+    const sizeSpan = row.querySelector(".playlist-item-size");
+    if (!cb || !sizeSpan) return;
+    const itemId = String(cb.value);
+    const item = currentMedia.items.find(it => String(it.id) === itemId);
+    if (item) {
+      const bytes = getItemSizeForQuality(item, q);
+      if (bytes > 0) {
+        sizeSpan.textContent = `~${formatBytes(bytes)}`;
+        sizeSpan.style.display = "inline-block";
+      } else {
+        sizeSpan.style.display = "none";
+      }
+    }
+  });
+}
+
 if (qualitySelect) {
   qualitySelect.addEventListener("change", () => {
     updateQualityBadge();
-    if (isCurrentMediaDownloaded) {
+    updatePlaylistItemSizes();
+    if (currentMedia && currentMedia.is_playlist) {
+      updatePlaylistDownloadButtonCount();
+    } else {
       setDownloadButtonState("ready");
     }
   });
@@ -725,14 +787,17 @@ function renderMediaInfo(info) {
     mediaBadge.style.background = isBatch ? "rgba(168, 85, 247, 0.15)" : "rgba(121, 40, 202, 0.15)";
     mediaDuration.textContent = `${info.item_count} Items`;
 
-    // Render playlist items with item-level size badge
+    // Render playlist items with item-level size badge for selected quality
     playlistCount.textContent = isBatch ? `Batch Items (${info.item_count})` : `Playlist Items (${info.item_count})`;
     playlistItemsList.innerHTML = "";
 
+    const currentQ = qualitySelect ? qualitySelect.value : "best";
     info.items.forEach((item, index) => {
       const row = document.createElement("label");
       row.className = "playlist-item";
-      const sizeTag = item.filesize_formatted ? `<span class="playlist-item-size">${item.filesize_formatted}</span>` : "";
+      const bytes = getItemSizeForQuality(item, currentQ);
+      const sizeStr = bytes > 0 ? `~${formatBytes(bytes)}` : (item.filesize_formatted || "");
+      const sizeTag = sizeStr ? `<span class="playlist-item-size">${sizeStr}</span>` : "";
       row.innerHTML = `
         <input type="checkbox" class="playlist-checkbox" value="${item.id}" checked>
         <span class="playlist-item-title">${index + 1}. ${escapeHtml(item.title)}</span>
@@ -798,13 +863,17 @@ if (playlistItemsList) {
 function updatePlaylistDownloadButtonCount() {
   const selectedBoxes = Array.from(document.querySelectorAll(".playlist-checkbox:checked"));
   const selectedCount = selectedBoxes.length;
+  const q = qualitySelect ? qualitySelect.value : "best";
 
   let totalBytes = 0;
   if (currentMedia && currentMedia.items) {
-    const selectedIds = new Set(selectedBoxes.map(cb => cb.value));
+    const selectedIds = new Set(selectedBoxes.map(cb => String(cb.value)));
     currentMedia.items.forEach(item => {
-      if (selectedIds.has(item.id) && item.filesize) {
-        totalBytes += item.filesize;
+      if (selectedIds.has(String(item.id))) {
+        const itemBytes = getItemSizeForQuality(item, q);
+        if (itemBytes) {
+          totalBytes += itemBytes;
+        }
       }
     });
   }

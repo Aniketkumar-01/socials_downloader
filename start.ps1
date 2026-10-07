@@ -3,9 +3,6 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-# Cleanup obsolete scratch and specification files
-& "$ScriptDir\clean_repo.ps1" -Silent
-
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host "  YouTube Video & Playlist Downloader - Quick Launcher" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan

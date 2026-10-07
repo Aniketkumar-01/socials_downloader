@@ -57,6 +57,8 @@ class VideoItem(BaseModel):
     channel: Optional[str] = None
     filesize: Optional[int] = None
     filesize_formatted: Optional[str] = None
+    quality_sizes: Dict[str, Optional[int]] = Field(default_factory=dict)
+    quality_sizes_formatted: Dict[str, str] = Field(default_factory=dict)
 
 class MediaInfoResponse(BaseModel):
     url: str

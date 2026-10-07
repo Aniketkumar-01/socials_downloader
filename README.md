@@ -212,8 +212,9 @@ d:/AG/yt/
 ├── build_installer.bat          # 1-click local installer build script
 ├── build_exe.bat                # 1-click local standalone EXE build script
 ├── publish_release.bat          # 1-click Git release publisher & tagger
-├── push_to_github.bat           # 1-click Git sync & release manager
 ├── cookies.txt.example          # Safe Netscape cookies template example
+├── DOCUMENTATION.md             # Architecture manual & API specifications
+├── .gitignore                   # Git exclusion rules
 └── LICENSE                      # MIT Open Source License
 ```
 

@@ -451,6 +451,23 @@ def extract_media_info(
             if item_bytes:
                 total_playlist_bytes += int(item_bytes)
 
+            item_quality_sizes = {}
+            item_quality_sizes_formatted = {}
+            if item_bytes and item_bytes > 0:
+                item_quality_sizes = {
+                    "best": int(item_bytes),
+                    "2160p": int(item_bytes * 2.2),
+                    "1440p": int(item_bytes * 1.5),
+                    "1080p": int(item_bytes),
+                    "720p": int(item_bytes * 0.65),
+                    "480p": int(item_bytes * 0.35),
+                    "360p": int(item_bytes * 0.25),
+                    "audio_mp3": max(int(item_bytes * 0.15), int(128 * 1000 / 8 * float(duration or 180))),
+                }
+                item_quality_sizes_formatted = {
+                    k: f"~{format_size_bytes(v)}" for k, v in item_quality_sizes.items()
+                }
+
             items.append(
                 VideoItem(
                     id=entry_id or str(len(items)+1),
@@ -461,7 +478,9 @@ def extract_media_info(
                     thumbnail=entry.get('thumbnail') or (entry.get('thumbnails', [{}])[-1].get('url') if entry.get('thumbnails') else None),
                     channel=entry.get('uploader') or entry.get('channel') or platform.title(),
                     filesize=item_bytes,
-                    filesize_formatted=f"~{format_size_bytes(item_bytes)}" if item_bytes else None
+                    filesize_formatted=f"~{format_size_bytes(item_bytes)}" if item_bytes else None,
+                    quality_sizes=item_quality_sizes,
+                    quality_sizes_formatted=item_quality_sizes_formatted
                 )
             )
 
@@ -524,7 +543,9 @@ def extract_media_info(
             thumbnail=thumbnail,
             channel=channel,
             filesize=best_size,
-            filesize_formatted=best_formatted
+            filesize_formatted=best_formatted,
+            quality_sizes=quality_sizes,
+            quality_sizes_formatted=quality_sizes_formatted
         )
 
         return MediaInfoResponse(
