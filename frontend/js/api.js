@@ -379,6 +379,27 @@ export async function applyAppUpdate(installerPath = null, silent = true) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.message || err.detail || "Failed to execute installer");
   }
+export async function getEngineVersion() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/engine/version`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to retrieve engine version");
+  }
   return await response.json();
 }
 
+export async function updateEngine() {
+  await syncAuthToken();
+  const response = await fetch(`${API_BASE}/api/engine/update`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || "Failed to update engine");
+  }
+  return await response.json();
+}

@@ -6,6 +6,8 @@ import {
   pauseTask,
   resumeTask,
   getAppVersion,
+  getEngineVersion,
+  updateEngine,
   getClipboardText,
   openDownloadsFolder, 
   openFile,
@@ -47,6 +49,12 @@ const errorTitle = document.getElementById("error-title");
 const errorMessage = document.getElementById("error-message");
 const errorHintBox = document.getElementById("error-hint-box");
 const errorHintText = document.getElementById("error-hint-text");
+const errorActionRow = document.getElementById("error-action-row");
+const btnUpdateEngine = document.getElementById("btn-update-engine");
+const btnUpdateEngineText = document.getElementById("btn-update-engine-text");
+const engineUpdateSpinner = document.getElementById("engine-update-spinner");
+const engineVersionIndicator = document.getElementById("engine-version-indicator");
+const engineBadgeText = document.getElementById("engine-badge-text");
 const errorTechDetails = document.getElementById("error-tech-details");
 const errorRawText = document.getElementById("error-raw-text");
 const btnDismissError = document.getElementById("btn-dismiss-error");
@@ -213,7 +221,7 @@ function formatLaymanError(errOrMsg) {
     code = "ENGINE_OUTDATED";
     title = "Video Layout Changed (Engine Update Available)";
     laymanMessage = "The video platform recently updated its website structure or stream encryption.";
-    if (!hint) hint = "The download engine can be refreshed automatically. Check for engine updates in settings.";
+    hint = "Click the 'Update Download Engine Now' button below to update to the latest extraction engine automatically.";
   }
 
   // Source display labels and icons
@@ -269,6 +277,10 @@ function showError(errOrMsg) {
     }
   }
 
+  if (errorActionRow) {
+    errorActionRow.style.display = (info.code === "ENGINE_OUTDATED") ? "flex" : "none";
+  }
+
 
 
   if (errorTechDetails && errorRawText) {
@@ -290,8 +302,8 @@ function clearError() {
   errorAlert.style.display = "none";
   if (errorMessage) errorMessage.textContent = "";
   if (errorHintBox) errorHintBox.style.display = "none";
+  if (errorActionRow) errorActionRow.style.display = "none";
   if (errorTechDetails) errorTechDetails.style.display = "none";
-
 }
 
 if (btnDismissError) {
@@ -1814,5 +1826,55 @@ if (appVersionIndicator) {
   appVersionIndicator.style.cursor = "pointer";
   appVersionIndicator.addEventListener("click", () => {
     handleCheckForUpdates(true);
+  });
+}
+
+// ==========================================================================
+// Engine Version Display & 1-Click Update Handler
+// ==========================================================================
+async function initEngineVersionDisplay() {
+  try {
+    const data = await getEngineVersion();
+    if (data && data.installed_version && engineBadgeText) {
+      engineBadgeText.textContent = `Engine v${data.installed_version}`;
+    }
+  } catch (_) {}
+}
+
+initEngineVersionDisplay();
+
+if (engineVersionIndicator) {
+  engineVersionIndicator.style.cursor = "pointer";
+  engineVersionIndicator.addEventListener("click", () => {
+    if (btnUpdateEngine) {
+      btnUpdateEngine.click();
+    }
+  });
+}
+
+if (btnUpdateEngine) {
+  btnUpdateEngine.addEventListener("click", async () => {
+    btnUpdateEngine.disabled = true;
+    if (btnUpdateEngineText) btnUpdateEngineText.textContent = "Updating Engine...";
+    if (engineUpdateSpinner) engineUpdateSpinner.style.display = "inline-block";
+    try {
+      const res = await updateEngine();
+      const newVer = (res && res.current_version) || "latest";
+      if (engineBadgeText) engineBadgeText.textContent = `Engine v${newVer}`;
+      showToast(`Download engine successfully updated to v${newVer}! Retrying fetch...`, "success", 3500);
+      clearError();
+      const currentUrl = (urlInput && urlInput.value) ? urlInput.value.trim() : "";
+      const currentBatch = (batchInput && batchInput.value) ? batchInput.value.trim() : "";
+      if (currentUrl || currentBatch) {
+        handleUrlSubmission();
+      }
+    } catch (err) {
+      console.error("Engine update failed:", err);
+      showToast(err.message || "Engine update failed. Please check your internet connection.", "error");
+    } finally {
+      btnUpdateEngine.disabled = false;
+      if (btnUpdateEngineText) btnUpdateEngineText.textContent = "Update Download Engine Now";
+      if (engineUpdateSpinner) engineUpdateSpinner.style.display = "none";
+    }
   });
 }

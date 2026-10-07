@@ -289,7 +289,7 @@ def map_ytdlp_error(err: Any) -> ErrorDetail:
         return ErrorDetail(
             code="ENGINE_OUTDATED",
             message="The video platform recently updated its website layout or stream signature.",
-            hint="The download engine needs to be refreshed. Update the download engine using POST /api/engine/update.",
+            hint="The download engine needs to be refreshed. Click 'Update Download Engine' below to refresh automatically.",
             source="app"
         )
     if "connection timed out" in clean_lower or "timed out" in clean_lower or "timeout" in clean_lower or "transporterror" in clean_lower or "connection refused" in clean_lower:

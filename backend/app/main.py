@@ -930,11 +930,16 @@ async def get_engine_version():
 @app.post("/api/engine/update")
 async def update_engine():
     """
-    Task 6: Installs/updates yt-dlp into isolated user data engine directory.
+    Installs/updates yt-dlp into isolated user data engine directory.
+    Supports both standard pip installation and pure-python PyPI wheel extraction for frozen EXE.
     Maintains backup for rollback if installation fails.
     """
     import yt_dlp
     import importlib
+    import zipfile
+    import io
+    import urllib.request
+
     prev_version = getattr(yt_dlp.version, "__version__", "unknown")
     backup_dir = USER_DATA_DIR / "engine_backup"
 
@@ -944,18 +949,56 @@ async def update_engine():
         if ENGINE_DIR.exists():
             shutil.copytree(ENGINE_DIR, backup_dir)
 
-        # Execute pip install -U yt-dlp into ENGINE_DIR
-        cmd = [
-            sys.executable, "-m", "pip", "install", "-U", "yt-dlp",
-            "--target", str(ENGINE_DIR),
-            "--no-warn-script-location"
-        ]
-        proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, creationflags=NO_WINDOW_FLAG)
-        if proc.returncode != 0:
-            raise RuntimeError(f"pip install failed: {proc.stderr or proc.stdout}")
+        updated = False
+        err_msg = ""
+
+        # Method 1: Try pip if not frozen
+        if not getattr(sys, 'frozen', False):
+            try:
+                cmd = [
+                    sys.executable, "-m", "pip", "install", "-U", "yt-dlp",
+                    "--target", str(ENGINE_DIR),
+                    "--no-warn-script-location"
+                ]
+                proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, creationflags=NO_WINDOW_FLAG)
+                if proc.returncode == 0:
+                    updated = True
+                else:
+                    err_msg = proc.stderr or proc.stdout
+            except Exception as pip_err:
+                err_msg = str(pip_err)
+
+        # Method 2: Direct PyPI Wheel download (works in frozen EXE and without pip)
+        if not updated:
+            def _download_and_extract_wheel():
+                req = urllib.request.Request("https://pypi.org/pypi/yt-dlp/json", headers={"User-Agent": "OmniDownloader/1.3.0"})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    pypi_data = json.loads(r.read().decode("utf-8"))
+                urls = pypi_data.get("urls", [])
+                whl_url = None
+                for entry in urls:
+                    fn = entry.get("filename", "")
+                    if fn.endswith(".whl") and "py3-none-any" in fn:
+                        whl_url = entry.get("url")
+                        break
+                if not whl_url and urls:
+                    whl_url = urls[0].get("url")
+                if not whl_url:
+                    raise RuntimeError(f"Could not locate yt-dlp wheel package. Pip error: {err_msg}")
+
+                dl_req = urllib.request.Request(whl_url, headers={"User-Agent": "OmniDownloader/1.3.0"})
+                with urllib.request.urlopen(dl_req, timeout=30) as whl_r:
+                    raw_bytes = whl_r.read()
+
+                with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
+                    z.extractall(str(ENGINE_DIR))
+
+            await asyncio.to_thread(_download_and_extract_wheel)
 
         # Invalidate module cache and reload
         importlib.invalidate_caches()
+        if str(ENGINE_DIR) not in sys.path:
+            sys.path.insert(0, str(ENGINE_DIR))
         importlib.reload(yt_dlp)
         new_version = getattr(yt_dlp.version, "__version__", "unknown")
 
