@@ -568,6 +568,7 @@ fun MainScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
+                            val isPaused = task.status == TaskStatus.PAUSED
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -583,7 +584,6 @@ fun MainScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                val isPaused = task.status == TaskStatus.PAUSED
                                 Surface(
                                     color = if (isPaused) AccentCyan.copy(alpha = 0.2f) else AccentTeal.copy(alpha = 0.2f),
                                     shape = RoundedCornerShape(6.dp)
