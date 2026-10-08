@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#0A0D14</color>
+    <color name="surface_dark">#121620</color>
+    <color name="surface_card">#171C28</color>
+    <color name="border_subtle">#232A3B</color>
+    <color name="accent_teal">#00F0B5</color>
+    <color name="accent_cyan">#00D2FF</color>
+    <color name="accent_purple">#7928CA</color>
+    <color name="text_primary">#F0F4FC</color>
+    <color name="text_secondary">#8E9AB0</color>
+    <color name="status_error">#FF4D6D</color>
+    <color name="status_success">#00F0B5</color>
+</resources>

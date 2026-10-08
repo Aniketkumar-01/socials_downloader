@@ -2,17 +2,17 @@
 
 # ⚡ OmniDownloader
 
-**Universal High-Performance Video, Audio & Playlist Downloader for Windows**
+**Universal High-Performance Video, Audio & Playlist Downloader for Windows & Android**
 
 *Download videos, Reels, Shorts, and entire playlists from YouTube, Instagram, TikTok, X (Twitter), Bilibili, and 1,000+ sites at full quality with real-time SSE progress.*
 
 [![Latest Release](https://img.shields.io/github/v/release/Aniketkumar-01/socials_downloader?color=00f0b5&label=Release&style=flat-square)](https://github.com/Aniketkumar-01/socials_downloader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-00d2ff.svg?style=flat-square)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0e121a.svg?style=flat-square&logo=windows)](https://github.com/Aniketkumar-01/socials_downloader/releases)
-[![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
+[![Platform: Android](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 
-[**Download Windows Installer**](https://github.com/Aniketkumar-01/socials_downloader/releases/latest) • [**Architecture & Documentation**](DOCUMENTATION.md) • [**Features**](#-features) • [**Quick Start**](#-quick-start-no-python-required) • [**FFmpeg Setup**](#-ffmpeg-setup-for-1080p-4k--mp3) • [**Developer Guide**](#-developer-quick-start) • [**Security**](#-security--privacy-architecture)
+[**Download Windows Installer**](https://github.com/Aniketkumar-01/socials_downloader/releases/latest) • [**Android App Guide**](android/README.md) • [**Architecture & Documentation**](DOCUMENTATION.md) • [**Features**](#-features) • [**Quick Start**](#-quick-start-no-python-required) • [**FFmpeg Setup**](#-ffmpeg-setup-for-1080p-4k--mp3)
 
 </div>
 

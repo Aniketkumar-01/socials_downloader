@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">OmniDownloader</string>
+    <string name="tagline">Universal Video &amp; Playlist Downloader</string>
+    <string name="paste_hint">Paste video or playlist link</string>
+    <string name="fetch_details">Fetch Details</string>
+    <string name="download_now">Download Now</string>
+    <string name="select_quality">Choose Format / Quality</string>
+    <string name="download_progress">Download Progress</string>
+    <string name="notification_channel_name">Active Downloads</string>
+    <string name="notification_channel_desc">Shows real-time progress for active media downloads</string>
+</resources>

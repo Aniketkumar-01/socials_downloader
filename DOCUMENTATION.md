@@ -514,6 +514,45 @@ OmniDownloader employs a fully automated dual-binary release pipeline generating
   winget install Gyan.FFmpeg
   ```
 
+
+---
+
+## 11. OmniDownloader for Android (Mobile Architecture & Implementation)
+
+> **Target OS:** Android 7.0 (API 24) to Android 15 (API 35)  
+> **Mobile Architecture:** Standalone Native Mobile App with Embedded NDK Core  
+> **UI Framework:** Android Jetpack Compose + Material 3 (Cyber-Obsidian Design System)  
+> **Directory:** `android/`
+
+### 11.1 The Core Mobile Engine
+Unlike the Windows desktop architecture that relies on system Python installations and subprocess pipes, the Android application operates **100% on-device** using the native **`youtubedl-android`** NDK/JNI runtime:
+- **Embedded CPython 3**: Compiled as a native shared library (`.so`) packaged within the APK for `arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`.
+- **Pre-compiled Mobile FFmpeg**: Embedded within native libraries, bypassing Android 10+ W^X (Write XOR Execute) security restrictions.
+- **Zero Server Dependency**: The user can download media directly on their smartphone while on mobile data or Wi-Fi without needing a desktop PC or external server running.
+
+### 11.2 Android Scoped Storage & MediaStore Integration
+On Android 11+ (API 30+), applications cannot write directly to public filesystem paths (`/sdcard/Downloads/`). OmniDownloader integrates directly with Android's **`MediaStore` API** via `StorageHelper.kt`:
+- **Video Streams (`.mp4`, `.mkv`)**: Registered into `MediaStore.Video.Media` with relative path `Movies/OmniDownloader`. Appears immediately in the phone's native Gallery, Google Photos, and media players (VLC, MX Player).
+- **Audio Streams (`.mp3`)**: Registered into `MediaStore.Audio.Media` with relative path `Music/OmniDownloader`. Appears in native Music players and audio managers.
+- **Atomic File Publishing**: Streams are downloaded and remuxed in the app's private cache directory, then published atomically to public storage with `IS_PENDING = 0`.
+
+### 11.3 Background Survival: Foreground Service & WakeLocks
+To prevent Android OS (Doze Mode and aggressive OEM battery optimizations like Samsung OneUI or Xiaomi MIUI) from killing downloads in the background:
+- **`DownloadForegroundService`**: Runs with `FOREGROUND_SERVICE_DATA_SYNC` / `FOREGROUND_SERVICE_MEDIA_PROCESSING` permission.
+- **Ongoing Notifications**: Displays a sticky, real-time notification with live percentage, download speed (MB/s), remaining ETA, and a one-tap Cancel action.
+- **Power Management**: Holds a partial `WakeLock` and `WifiLock` for the duration of the active download and releases it immediately upon completion.
+
+### 11.4 Android Share Sheet (`ACTION_SEND`)
+Users can share directly from the native YouTube, Instagram, TikTok, or Twitter apps:
+1. Tap **Share** in any media app.
+2. Select **OmniDownloader** from the Android system share sheet.
+3. `MainActivity.kt` intercepts the `Intent.ACTION_SEND` intent, extracts the URL using regular expressions, populates the input bay, and automatically triggers metadata extraction.
+
+### 11.5 In-App Cookie Authentication & Bot Bypass
+Because Android sandboxes prevent any app from reading cookies from Chrome, Edge, or Brave:
+- **`WebViewAuthActivity.kt`**: Provides a secure in-app WebView for logging into YouTube or Instagram.
+- **Cookie Export**: Reads authenticated cookies via `CookieManager.getInstance().getCookie()` and writes them into Netscape format in the app's internal private storage (`filesDir/cookies.txt`).
+
 ---
 
 *Authored for the OmniDownloader Project.*  

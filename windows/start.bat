@@ -3,13 +3,6 @@ setlocal
 
 cd /d "%~dp0"
 
-:: If Windows app has been moved to windows\ subfolder, delegate to it
-if exist "windows\start.bat" if not exist "backend\app\main.py" (
-    cd windows
-    call start.bat
-    exit /b %errorlevel%
-)
-
 echo ========================================================
 echo   OmniDownloader - Windows Desktop Quick Launcher
 echo ========================================================
@@ -24,8 +17,12 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: 2. Setup Virtual Environment
-if not exist "venv" (
+:: 2. Setup or Locate Virtual Environment (local or parent)
+if exist "venv\Scripts\activate.bat" (
+    call venv\Scripts\activate.bat
+) else if exist "..\venv\Scripts\activate.bat" (
+    call ..\venv\Scripts\activate.bat
+) else (
     echo [*] Creating Python virtual environment...
     python -m venv venv
     if %errorlevel% neq 0 (
@@ -33,13 +30,10 @@ if not exist "venv" (
         pause
         exit /b 1
     )
+    call venv\Scripts\activate.bat
 )
 
-:: 3. Activate Virtual Environment
-echo [*] Activating virtual environment...
-call venv\Scripts\activate.bat
-
-:: 4. Install Dependencies
+:: 3. Install Dependencies
 echo [*] Checking dependencies...
 pip install -r backend\requirements.txt --quiet
 if %errorlevel% neq 0 (
@@ -47,10 +41,10 @@ if %errorlevel% neq 0 (
     pip install -r backend\requirements.txt
 )
 
-:: 5. Launch Standalone PC Desktop Window once server is verified listening
+:: 4. Launch Standalone PC Desktop Window once server is verified listening
 start "" powershell -NoProfile -Command "$client = New-Object System.Net.Sockets.TcpClient; for ($i=0; $i -lt 40; $i++) { try { $client.Connect('127.0.0.1', 8000); $client.Close(); $e86 = \"${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe\"; $e64 = \"${env:ProgramFiles}\Microsoft\Edge\Application\msedge.exe\"; $prof = \"$env:LOCALAPPDATA\OmniDownloader\AppShellProfile\"; $args = @('--app=http://localhost:8000', '--window-size=1120,820', '--app-id=OmniDownloader', \"--user-data-dir=$prof\", '--no-first-run', '--no-default-browser-check', '--disable-sync', '--disable-features=Sync,Signin,EdgeIdentitySignIn'); if (Test-Path $e86) { Start-Process $e86 -ArgumentList $args } elseif (Test-Path $e64) { Start-Process $e64 -ArgumentList $args } else { Start-Process 'http://localhost:8000' }; break } catch { Start-Sleep -Milliseconds 500 } }"
 
-:: 6. Start FastAPI Application
+:: 5. Start FastAPI Application
 echo.
 echo ========================================================
 echo   Server running at: http://localhost:8000
