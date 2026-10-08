@@ -41,12 +41,13 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    initialSharedUrl: String? = null
+    sharedUrl: String? = null,
+    onSharedUrlConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var urlInput by remember { mutableStateOf(initialSharedUrl ?: "") }
+    var urlInput by remember { mutableStateOf(sharedUrl ?: "") }
     var isFetching by remember { mutableStateOf(false) }
     var mediaMetadata by remember { mutableStateOf<MediaMetadata?>(null) }
     var selectedQuality by remember { mutableStateOf("best") }
@@ -59,17 +60,24 @@ fun MainScreen(
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
+    var isDownloadingApk by remember { mutableStateOf(false) }
+    var downloadApkProgress by remember { mutableStateOf(0) }
+    var downloadApkStatus by remember { mutableStateOf("") }
+    var downloadedApkFile by remember { mutableStateOf<java.io.File?>(null) }
 
-    // If initial shared URL arrived via Intent, auto-fetch
-    LaunchedEffect(initialSharedUrl) {
-        if (!initialSharedUrl.isNullOrBlank()) {
-            urlInput = initialSharedUrl
-            fetchDetails(context, initialSharedUrl, onStart = { isFetching = true }, onSuccess = {
+    // If shared URL arrived via Intent, auto-fetch
+    LaunchedEffect(sharedUrl) {
+        if (!sharedUrl.isNullOrBlank()) {
+            urlInput = sharedUrl
+            errorMessage = null
+            fetchDetails(context, sharedUrl, onStart = { isFetching = true }, onSuccess = {
                 mediaMetadata = it
                 isFetching = false
+                onSharedUrlConsumed()
             }, onError = {
                 errorMessage = it
                 isFetching = false
+                onSharedUrlConsumed()
             })
         }
     }
@@ -296,18 +304,47 @@ fun MainScreen(
                             .fillMaxWidth()
                             .border(1.dp, StatusError.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                     ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = StatusError)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                errorMessage ?: "Unknown error",
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                modifier = Modifier.weight(1f)
-                            )
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = StatusError)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    errorMessage ?: "Unknown error",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { errorMessage = null },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            Toast.makeText(context, "Updating yt-dlp core engine...", Toast.LENGTH_SHORT).show()
+                                            val upResult = YoutubeDLEngine.updateYtDlpCore(context)
+                                            upResult.onSuccess {
+                                                Toast.makeText(context, "Engine updated! Please retry fetching.", Toast.LENGTH_LONG).show()
+                                            }.onFailure {
+                                                Toast.makeText(context, "Update check: ${it.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentCyan),
+                                    border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Update Engine Core", fontSize = 11.sp)
+                                }
+                            }
                         }
                     }
                 }
@@ -879,6 +916,32 @@ fun MainScreen(
                                 }
                             }
                         }
+
+                        if (isDownloadingApk) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            LinearProgressIndicator(
+                                progress = { if (downloadApkProgress >= 0) downloadApkProgress / 100f else 0f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = AccentTeal,
+                                trackColor = SurfaceCard
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                downloadApkStatus,
+                                fontSize = 11.sp,
+                                color = AccentCyan
+                            )
+                        } else if (downloadedApkFile != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "✓ Update downloaded and ready to install.",
+                                fontSize = 11.sp,
+                                color = StatusSuccess
+                            )
+                        }
                     } else {
                         Text(
                             "You are running the newest release of OmniDownloader. You can also update the embedded yt-dlp core engine for latest platform fixes.",
@@ -890,16 +953,58 @@ fun MainScreen(
             },
             confirmButton = {
                 if (info.isUpdateAvailable && info.apkDownloadUrl != null) {
-                    Button(
-                        onClick = {
-                            UpdateManager.openDownloadUrl(context, info.apkDownloadUrl)
-                            showUpdateDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Download APK", color = BgDark, fontWeight = FontWeight.Bold)
+                    if (isDownloadingApk) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = AccentTeal,
+                            strokeWidth = 2.dp
+                        )
+                    } else if (downloadedApkFile != null) {
+                        Button(
+                            onClick = {
+                                UpdateManager.installApk(context, downloadedApkFile!!)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Install APK Now", color = BgDark, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isDownloadingApk = true
+                                    downloadApkStatus = "Starting download..."
+                                    downloadApkProgress = 0
+                                    val dlResult = UpdateManager.downloadApk(context, info.apkDownloadUrl) { bytesRead, totalBytes, percent ->
+                                        val mbRead = bytesRead.toDouble() / (1024 * 1024)
+                                        val mbTotal = totalBytes.toDouble() / (1024 * 1024)
+                                        downloadApkProgress = percent
+                                        downloadApkStatus = if (totalBytes > 0) {
+                                            String.format(java.util.Locale.US, "Downloading: %.1f / %.1f MB (%d%%)", mbRead, mbTotal, percent)
+                                        } else {
+                                            String.format(java.util.Locale.US, "Downloading: %.1f MB", mbRead)
+                                        }
+                                    }
+                                    dlResult.onSuccess { apkFile ->
+                                        downloadedApkFile = apkFile
+                                        isDownloadingApk = false
+                                        downloadApkStatus = "Download complete! Opening installer..."
+                                        UpdateManager.installApk(context, apkFile)
+                                    }.onFailure { err ->
+                                        isDownloadingApk = false
+                                        downloadApkStatus = "Download failed: ${err.message}"
+                                        Toast.makeText(context, "Download failed: ${err.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Download & Install", color = BgDark, fontWeight = FontWeight.Bold)
+                        }
                     }
                 } else {
                     Button(
@@ -922,8 +1027,24 @@ fun MainScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) {
-                    Text("Close", color = TextSecondary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (info.isUpdateAvailable && info.apkDownloadUrl != null) {
+                        TextButton(onClick = {
+                            UpdateManager.openDownloadUrl(context, "https://github.com/Aniketkumar-01/socials_downloader/releases/latest")
+                        }) {
+                            Text("Browser", fontSize = 11.sp, color = TextSecondary)
+                        }
+                    }
+                    TextButton(onClick = {
+                        if (!isDownloadingApk) {
+                            showUpdateDialog = false
+                            downloadApkStatus = ""
+                            downloadApkProgress = 0
+                            downloadedApkFile = null
+                        }
+                    }) {
+                        Text("Close", color = TextSecondary)
+                    }
                 }
             }
         )

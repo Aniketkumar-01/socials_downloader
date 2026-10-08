@@ -1,0 +1,1 @@
+android-v1.4.3: Fix YouTube format availability, shortlink & header support for Bilibili/Reddit/Instagram, in-app updater with auto-install, and reactive Share Sheet

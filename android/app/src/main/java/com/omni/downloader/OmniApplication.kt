@@ -31,6 +31,16 @@ class OmniApplication : Application() {
             // Initialize embedded FFmpeg mobile native binaries
             FFmpeg.getInstance().init(this)
             Log.i(TAG, "Embedded FFmpeg engine successfully initialized.")
+
+            // Quietly update yt-dlp core in background to keep extractors fresh for YouTube, Instagram, Reddit, etc.
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val status = YoutubeDL.getInstance().updateYoutubeDL(this@OmniApplication)
+                    Log.i(TAG, "yt-dlp core background update status: $status")
+                } catch (updateErr: Exception) {
+                    Log.w(TAG, "yt-dlp core background update check: ${updateErr.message}")
+                }
+            }
         } catch (e: Exception) {
             initError = e.message ?: e.toString()
             Log.e(TAG, "Failed to initialize embedded download engine: ${e.message}", e)

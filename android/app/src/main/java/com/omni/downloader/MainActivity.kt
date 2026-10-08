@@ -8,13 +8,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import com.omni.downloader.ui.screens.MainScreen
 import com.omni.downloader.ui.theme.OmniDownloaderTheme
 
 class MainActivity : ComponentActivity() {
 
-    private var sharedUrl: String? = null
+    private val sharedUrlState = mutableStateOf<String?>(null)
 
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -24,7 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Handle shared URL from YouTube, Instagram, or TikTok app
+        // Handle shared URL from YouTube, Instagram, Reddit, TikTok, Twitter, etc.
         handleIncomingIntent(intent)
 
         // Request POST_NOTIFICATIONS on Android 13+
@@ -37,7 +38,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             OmniDownloaderTheme {
                 MainScreen(
-                    initialSharedUrl = sharedUrl
+                    sharedUrl = sharedUrlState.value,
+                    onSharedUrlConsumed = {
+                        sharedUrlState.value = null
+                    }
                 )
             }
         }
@@ -50,14 +54,52 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+        if (intent == null) return
+        val url = extractUrlFromIntent(intent)
+        if (!url.isNullOrBlank()) {
+            sharedUrlState.value = url
+        }
+    }
+
+    private fun extractUrlFromIntent(intent: Intent): String? {
+        // 1. Direct data URI (browser links, VIEW intents)
+        intent.dataString?.let { data ->
+            val clean = cleanUrl(data)
+            if (clean != null) return clean
+        }
+
+        // 2. Extra text (YouTube, Instagram, Reddit, TikTok share sheet)
+        if (intent.action == Intent.ACTION_SEND) {
             val text = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!text.isNullOrBlank()) {
-                // Extract URL from shared text (e.g., YouTube app shares "Check this out: https://youtu.be/...")
-                val urlRegex = Regex("""https?://\S+""")
-                val match = urlRegex.find(text)
-                sharedUrl = match?.value ?: text.trim()
+                val clean = cleanUrl(text)
+                if (clean != null) return clean
             }
         }
+
+        // 3. ClipData
+        val clipData = intent.clipData
+        if (clipData != null && clipData.itemCount > 0) {
+            for (i in 0 until clipData.itemCount) {
+                val item = clipData.getItemAt(i)
+                val text = item.text?.toString() ?: item.uri?.toString()
+                if (!text.isNullOrBlank()) {
+                    val clean = cleanUrl(text)
+                    if (clean != null) return clean
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun cleanUrl(raw: String): String? {
+        val urlRegex = Regex("""https?://[^\s"'<>]+""")
+        val match = urlRegex.find(raw) ?: return null
+        var url = match.value.trim()
+        while (url.isNotEmpty() && url.last() in ".,;!?)]>\"'") {
+            url = url.substring(0, url.length - 1)
+        }
+        return if (url.startsWith("http://") || url.startsWith("https://")) url else null
     }
 }

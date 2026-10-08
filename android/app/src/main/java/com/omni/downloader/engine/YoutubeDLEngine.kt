@@ -11,10 +11,13 @@ import com.yausername.youtubedl_android.mapper.VideoInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
 
 object YoutubeDLEngine {
     private const val TAG = "YoutubeDLEngine"
+    private const val BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 
     private fun ensureInitialized(context: Context) {
         try {
@@ -48,6 +51,73 @@ object YoutubeDLEngine {
     }
 
     /**
+     * Preprocesses and resolves redirect URLs for shortlinks (b23.tv, reddit /s/ shares)
+     * and strips tracking tokens from Instagram reels.
+     */
+    private suspend fun preprocessUrl(rawUrl: String): String = withContext(Dispatchers.IO) {
+        var url = rawUrl.trim()
+
+        // Strip Instagram query tracking tokens (?stkn=..., ?igsh=...)
+        if (url.contains("instagram.com", ignoreCase = true)) {
+            val qIdx = url.indexOf('?')
+            if (qIdx != -1) {
+                url = url.substring(0, qIdx)
+            }
+        }
+
+        // Strip Reddit query tracking if not /s/ share
+        if (url.contains("reddit.com", ignoreCase = true) && !url.contains("/s/")) {
+            val qIdx = url.indexOf('?')
+            if (qIdx != -1) {
+                url = url.substring(0, qIdx)
+            }
+        }
+
+        // Follow HTTP redirects for shortlinks to get canonical endpoints
+        val needsResolution = url.contains("b23.tv", ignoreCase = true) ||
+                (url.contains("reddit.com", ignoreCase = true) && url.contains("/s/")) ||
+                url.contains("t.co", ignoreCase = true)
+
+        if (needsResolution) {
+            try {
+                var current = url
+                var redirects = 0
+                while (redirects < 5) {
+                    val conn = (URL(current).openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = false
+                        connectTimeout = 6000
+                        readTimeout = 6000
+                        setRequestProperty("User-Agent", BROWSER_USER_AGENT)
+                        setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                    }
+                    val code = conn.responseCode
+                    if (code in 300..399) {
+                        val loc = conn.getHeaderField("Location")
+                        conn.disconnect()
+                        if (loc != null) {
+                            current = if (loc.startsWith("/")) {
+                                val base = URL(current)
+                                "${base.protocol}://${base.host}$loc"
+                            } else {
+                                loc
+                            }
+                            redirects++
+                            continue
+                        }
+                    }
+                    conn.disconnect()
+                    break
+                }
+                url = current
+            } catch (e: Exception) {
+                Log.w(TAG, "Shortlink redirect resolution notice: ${e.message}")
+            }
+        }
+
+        url
+    }
+
+    /**
      * Updates the embedded yt-dlp core to the latest upstream release.
      */
     suspend fun updateYtDlpCore(context: Context): Result<String> = withContext(Dispatchers.IO) {
@@ -74,33 +144,62 @@ object YoutubeDLEngine {
                 .map { it.trim() }
                 .filter { it.startsWith("http://") || it.startsWith("https://") }
 
-            val targetUrl = rawUrls.firstOrNull() ?: input.trim()
+            val rawTarget = rawUrls.firstOrNull() ?: input.trim()
+            val targetUrl = preprocessUrl(rawTarget)
             val isMultiBatch = rawUrls.size > 1
             val isUrlPlaylist = targetUrl.contains("playlist", ignoreCase = true) || targetUrl.contains("list=", ignoreCase = true)
             val isPlaylistUrl = isUrlPlaylist || isMultiBatch
 
-            val isYouTube = targetUrl.contains("youtube.com", ignoreCase = true) || targetUrl.contains("youtu.be", ignoreCase = true)
-            val request = YoutubeDLRequest(targetUrl).apply {
-                addOption("--skip-download")
-                addOption("--no-warnings")
-                addOption("--no-update")
+            val applyHeaders: (YoutubeDLRequest, String) -> Unit = { req, url ->
+                req.addOption("--skip-download")
+                req.addOption("--no-warnings")
+                req.addOption("--no-update")
+                req.addOption("--no-check-certificates")
+                req.addOption("--user-agent", BROWSER_USER_AGENT)
+                req.addOption("--add-header", "Accept-Language:en-US,en;q=0.9")
 
-                // Only use flat-playlist for playlist URLs so single videos get full metadata and duration
-                if (isUrlPlaylist) {
-                    addOption("--flat-playlist")
+                if (url.contains("bilibili.com", ignoreCase = true) || url.contains("b23.tv", ignoreCase = true)) {
+                    req.addOption("--add-header", "Referer:https://www.bilibili.com")
+                    req.addOption("--add-header", "Origin:https://www.bilibili.com")
                 }
 
-                // player_client=ios is only for individual video streams, breaks playlist tab endpoints
-                if (isYouTube && !isPlaylistUrl) {
-                    addOption("--extractor-args", "youtube:player_client=ios,web")
+                if (url.contains("instagram.com", ignoreCase = true)) {
+                    req.addOption("--add-header", "Referer:https://www.instagram.com/")
+                }
+
+                if (url.contains("reddit.com", ignoreCase = true)) {
+                    req.addOption("--add-header", "Referer:https://www.reddit.com/")
+                }
+
+                if (isUrlPlaylist) {
+                    req.addOption("--flat-playlist")
                 }
             }
 
-            val videoInfo: VideoInfo? = try {
-                YoutubeDL.getInstance().getInfo(request)
+            val request = YoutubeDLRequest(targetUrl).apply {
+                applyHeaders(this, targetUrl)
+            }
+
+            var videoInfo: VideoInfo? = null
+            try {
+                videoInfo = YoutubeDL.getInstance().getInfo(request)
             } catch (e: Exception) {
-                Log.w(TAG, "getInfo failed: ${e.message}")
-                if (isPlaylistUrl) null else throw e
+                val isYouTube = targetUrl.contains("youtube.com", ignoreCase = true) || targetUrl.contains("youtu.be", ignoreCase = true)
+                if (isYouTube && !isPlaylistUrl) {
+                    // Fallback to android client extraction if standard extraction failed
+                    try {
+                        val fbRequest = YoutubeDLRequest(targetUrl).apply {
+                            applyHeaders(this, targetUrl)
+                            addOption("--extractor-args", "youtube:player_client=android,web")
+                        }
+                        videoInfo = YoutubeDL.getInstance().getInfo(fbRequest)
+                    } catch (fbErr: Exception) {
+                        Log.w(TAG, "Android fallback client also failed: ${fbErr.message}")
+                        if (!isPlaylistUrl) throw e
+                    }
+                } else if (!isPlaylistUrl) {
+                    throw e
+                }
             }
 
             val rawTitle = videoInfo?.title ?: if (isMultiBatch) "Batch (${rawUrls.size} items)" else "YouTube Playlist"
@@ -132,7 +231,7 @@ object YoutubeDLEngine {
                 targetUrl.contains("instagram.com", true) -> "Instagram"
                 targetUrl.contains("tiktok.com", true) -> "TikTok"
                 targetUrl.contains("twitter.com", true) || targetUrl.contains("x.com", true) -> "X (Twitter)"
-                targetUrl.contains("bilibili.com", true) -> "Bilibili"
+                targetUrl.contains("bilibili.com", true) || targetUrl.contains("b23.tv", true) -> "Bilibili"
                 targetUrl.contains("facebook.com", true) -> "Facebook"
                 targetUrl.contains("reddit.com", true) -> "Reddit"
                 else -> "Universal"
@@ -149,7 +248,7 @@ object YoutubeDLEngine {
 
             Result.success(
                 MediaMetadata(
-                    url = input.trim(),
+                    url = targetUrl,
                     title = rawTitle,
                     channel = channel,
                     durationFormatted = durationFormatted,
@@ -193,10 +292,21 @@ object YoutubeDLEngine {
                 req.addOption("--windows-filenames")
                 req.addOption("--no-warnings")
                 req.addOption("--no-update")
+                req.addOption("--no-check-certificates")
+                req.addOption("--user-agent", BROWSER_USER_AGENT)
+                req.addOption("--add-header", "Accept-Language:en-US,en;q=0.9")
 
-                val isYouTube = targetUrl.contains("youtube.com", ignoreCase = true) || targetUrl.contains("youtu.be", ignoreCase = true)
-                if (isYouTube && !isPl) {
-                    req.addOption("--extractor-args", "youtube:player_client=ios,web")
+                if (targetUrl.contains("bilibili.com", ignoreCase = true) || targetUrl.contains("b23.tv", ignoreCase = true)) {
+                    req.addOption("--add-header", "Referer:https://www.bilibili.com")
+                    req.addOption("--add-header", "Origin:https://www.bilibili.com")
+                }
+
+                if (targetUrl.contains("instagram.com", ignoreCase = true)) {
+                    req.addOption("--add-header", "Referer:https://www.instagram.com/")
+                }
+
+                if (targetUrl.contains("reddit.com", ignoreCase = true)) {
+                    req.addOption("--add-header", "Referer:https://www.reddit.com/")
                 }
 
                 if (isPl) {
@@ -220,32 +330,35 @@ object YoutubeDLEngine {
                         req.addOption("--audio-quality", "192K")
                     }
                     "1080p" -> {
-                        req.addOption("-f", "bestvideo*[height<=?1080]+bestaudio/best[height<=?1080]/bestvideo*+bestaudio/best")
+                        req.addOption("-f", "bv*[height<=?1080]+ba/b[height<=?1080]/bv*+ba/best")
                         req.addOption("--format-sort", "res:1080,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         req.addOption("--merge-output-format", "mp4")
                     }
                     "720p" -> {
-                        req.addOption("-f", "bestvideo*[height<=?720]+bestaudio/best[height<=?720]/bestvideo*+bestaudio/best")
+                        req.addOption("-f", "bv*[height<=?720]+ba/b[height<=?720]/bv*+ba/best")
                         req.addOption("--format-sort", "res:720,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         req.addOption("--merge-output-format", "mp4")
                     }
                     "480p" -> {
-                        req.addOption("-f", "bestvideo*[height<=?480]+bestaudio/best[height<=?480]/bestvideo*+bestaudio/best")
+                        req.addOption("-f", "bv*[height<=?480]+ba/b[height<=?480]/bv*+ba/best")
                         req.addOption("--format-sort", "res:480,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         req.addOption("--merge-output-format", "mp4")
                     }
                     else -> {
-                        req.addOption("-f", "bestvideo*+bestaudio/best")
+                        req.addOption("-f", "bv*+ba/b/best")
                         req.addOption("--format-sort", "res,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         req.addOption("--merge-output-format", "mp4")
                     }
                 }
             }
 
+            var downloadError: Exception? = null
+
             if (urls.size > 1) {
                 // Multi-link batch downloading
-                for ((idx, singleUrl) in urls.withIndex()) {
+                for ((idx, rawSingleUrl) in urls.withIndex()) {
                     try {
+                        val singleUrl = preprocessUrl(rawSingleUrl)
                         val req = YoutubeDLRequest(singleUrl)
                         configureRequest(req, singleUrl, false, idx)
                         YoutubeDL.getInstance().execute(req) { progress, eta, line ->
@@ -255,11 +368,13 @@ object YoutubeDLEngine {
                         }
                     } catch (itemErr: Exception) {
                         Log.w(TAG, "Batch item ${idx + 1} failed: ${itemErr.message}", itemErr)
+                        downloadError = itemErr
                     }
                 }
             } else {
                 // Single video or YouTube playlist
-                val singleUrl = urls.first()
+                val rawSingleUrl = urls.first()
+                val singleUrl = preprocessUrl(rawSingleUrl)
                 val isTargetPlaylist = isPlaylist || singleUrl.contains("playlist", ignoreCase = true) || singleUrl.contains("list=", ignoreCase = true)
                 val req = YoutubeDLRequest(singleUrl)
                 configureRequest(req, singleUrl, isTargetPlaylist, 0)
@@ -268,7 +383,8 @@ object YoutubeDLEngine {
                         onProgress(progress, eta, line ?: "")
                     }
                 } catch (execErr: Exception) {
-                    Log.w(TAG, "Download execution notice: ${execErr.message}")
+                    Log.w(TAG, "Download execution error: ${execErr.message}", execErr)
+                    downloadError = execErr
                 }
             }
 
@@ -280,7 +396,11 @@ object YoutubeDLEngine {
                 .toList()
 
             if (downloadedFiles.isEmpty()) {
-                throw IllegalStateException("Download finished but target media file not found on disk.")
+                if (downloadError != null) {
+                    throw downloadError
+                } else {
+                    throw IllegalStateException("Download finished but target media file not found on disk.")
+                }
             }
 
             Result.success(downloadedFiles)
