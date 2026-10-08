@@ -920,7 +920,7 @@ fun MainScreen(
                         if (isDownloadingApk) {
                             Spacer(modifier = Modifier.height(12.dp))
                             LinearProgressIndicator(
-                                progress = { if (downloadApkProgress >= 0) downloadApkProgress / 100f else 0f },
+                                progress = if (downloadApkProgress >= 0) downloadApkProgress / 100f else 0f,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(6.dp)

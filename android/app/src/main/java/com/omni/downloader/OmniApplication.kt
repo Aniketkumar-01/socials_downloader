@@ -7,6 +7,9 @@ import android.os.Build
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.ffmpeg.FFmpeg
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class OmniApplication : Application() {
 
@@ -33,7 +36,7 @@ class OmniApplication : Application() {
             Log.i(TAG, "Embedded FFmpeg engine successfully initialized.")
 
             // Quietly update yt-dlp core in background to keep extractors fresh for YouTube, Instagram, Reddit, etc.
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val status = YoutubeDL.getInstance().updateYoutubeDL(this@OmniApplication)
                     Log.i(TAG, "yt-dlp core background update status: $status")
