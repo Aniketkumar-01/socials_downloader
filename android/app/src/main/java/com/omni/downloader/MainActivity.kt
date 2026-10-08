@@ -10,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.omni.downloader.ui.screens.MainScreen
-import com.omni.downloader.ui.screens.WebViewAuthActivity
 import com.omni.downloader.ui.theme.OmniDownloaderTheme
 
 class MainActivity : ComponentActivity() {
@@ -38,10 +37,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             OmniDownloaderTheme {
                 MainScreen(
-                    initialSharedUrl = sharedUrl,
-                    onOpenAuth = {
-                        startActivity(Intent(this, WebViewAuthActivity::class.java))
-                    }
+                    initialSharedUrl = sharedUrl
                 )
             }
         }

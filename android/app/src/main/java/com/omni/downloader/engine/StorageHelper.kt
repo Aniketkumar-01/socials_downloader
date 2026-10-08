@@ -19,10 +19,6 @@ object StorageHelper {
         return dir
     }
 
-    fun getAppCookiesFile(context: Context): File {
-        return File(context.filesDir, "cookies.txt")
-    }
-
     /**
      * Publishes a completed temporary media file into Android's public MediaStore
      * so it immediately appears in the user's Gallery, VLC, Files, and Music apps.

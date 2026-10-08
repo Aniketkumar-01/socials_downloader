@@ -11,6 +11,7 @@ import com.yausername.youtubedl_android.mapper.VideoInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 object YoutubeDLEngine {
     private const val TAG = "YoutubeDLEngine"
@@ -22,6 +23,23 @@ object YoutubeDLEngine {
         } catch (e: Exception) {
             Log.w(TAG, "Engine init check: ${e.message}")
         }
+    }
+
+    private fun formatSizeBytes(bytes: Long): String {
+        if (bytes <= 0) return ""
+        val b = bytes.toDouble()
+        return when {
+            b >= 1024 * 1024 * 1024 -> String.format(Locale.US, "%.1f GB", b / (1024 * 1024 * 1024))
+            b >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", b / (1024 * 1024))
+            b >= 1024 -> String.format(Locale.US, "%.0f KB", b / 1024)
+            else -> String.format(Locale.US, "%.0f B", b)
+        }
+    }
+
+    private fun estimateSize(durationSecs: Int, kbps: Int): String? {
+        if (durationSecs <= 0) return null
+        val bytes = (kbps.toLong() * 1000L / 8L) * durationSecs.toLong()
+        return "~${formatSizeBytes(bytes)}"
     }
 
     /**
@@ -49,12 +67,11 @@ object YoutubeDLEngine {
                 addOption("--flat-playlist")
                 addOption("--no-warnings")
                 addOption("--no-update")
-                // Bypass SABR streaming skips by forcing Android and Web client endpoints
-                addOption("--extractor-args", "youtube:player_client=android,web")
 
-                val cookiesFile = StorageHelper.getAppCookiesFile(context)
-                if (cookiesFile.exists() && cookiesFile.length() > 0) {
-                    addOption("--cookies", cookiesFile.absolutePath)
+                val isYouTube = url.contains("youtube.com", ignoreCase = true) || url.contains("youtu.be", ignoreCase = true)
+                if (isYouTube) {
+                    // Use iOS and Web clients to bypass mobile 360p/640p caps and access full 1080p DASH streams
+                    addOption("--extractor-args", "youtube:player_client=ios,web")
                 }
             }
 
@@ -65,7 +82,7 @@ object YoutubeDLEngine {
             val durationFormatted = if (durationSecs > 0) {
                 val mins = durationSecs / 60
                 val secs = durationSecs % 60
-                String.format("%02d:%02d", mins, secs)
+                String.format(Locale.US, "%02d:%02d", mins, secs)
             } else null
 
             val isPlaylist = url.contains("playlist", ignoreCase = true) || url.contains("list=", ignoreCase = true)
@@ -82,12 +99,13 @@ object YoutubeDLEngine {
                 else -> "Universal"
             }
 
+            // Estimate sizes matching desktop logic based on duration and standard bitrates
             val qualities = listOf(
-                QualityOption("best", "Best Available", "Source Maximum", false),
-                QualityOption("1080p", "Full HD 1080p", "1080p", false),
-                QualityOption("720p", "HD 720p", "720p", false),
-                QualityOption("480p", "Standard 480p", "480p", false),
-                QualityOption("audio_mp3", "Audio Only (MP3)", "MP3 192kbps", true)
+                QualityOption("best", "Best Available", "Source Maximum", false, estimateSize(durationSecs, 3628)),
+                QualityOption("1080p", "Full HD 1080p", "1080p", false, estimateSize(durationSecs, 2628)),
+                QualityOption("720p", "HD 720p", "720p", false, estimateSize(durationSecs, 1528)),
+                QualityOption("480p", "Standard 480p", "480p", false, estimateSize(durationSecs, 878)),
+                QualityOption("audio_mp3", "Audio Only (MP3)", "MP3 192kbps", true, estimateSize(durationSecs, 192))
             )
 
             Result.success(
@@ -110,29 +128,38 @@ object YoutubeDLEngine {
     }
 
     /**
-     * Executes the download with real-time progress callbacks.
+     * Executes the download with real-time progress callbacks, pause/resume support,
+     * un-capped resolution, and full playlist batch download support.
      */
     suspend fun executeDownload(
         context: Context,
         url: String,
         qualityId: String,
         targetDir: File,
+        isPlaylist: Boolean = false,
         onProgress: (progress: Float, etaInSeconds: Long, line: String) -> Unit
-    ): Result<File> = withContext(Dispatchers.IO) {
+    ): Result<List<File>> = withContext(Dispatchers.IO) {
         try {
             ensureInitialized(context)
             val request = YoutubeDLRequest(url).apply {
-                addOption("-o", "${targetDir.absolutePath}/%(title).100B [%(id)s].%(ext)s")
+                addOption("-c") // Support resume for paused downloads
                 addOption("--no-mtime")
                 addOption("--windows-filenames")
                 addOption("--no-warnings")
                 addOption("--no-update")
-                // Use Android client formats to bypass YouTube SABR video/audio stream block
-                addOption("--extractor-args", "youtube:player_client=android,web")
 
-                val cookiesFile = StorageHelper.getAppCookiesFile(context)
-                if (cookiesFile.exists() && cookiesFile.length() > 0) {
-                    addOption("--cookies", cookiesFile.absolutePath)
+                val isYouTube = url.contains("youtube.com", ignoreCase = true) || url.contains("youtu.be", ignoreCase = true)
+                if (isYouTube) {
+                    // Use iOS and Web clients to bypass mobile 360p/640p caps and access full 1080p DASH streams
+                    addOption("--extractor-args", "youtube:player_client=ios,web")
+                }
+
+                if (isPlaylist) {
+                    addOption("--yes-playlist")
+                    addOption("-o", "${targetDir.absolutePath}/%(playlist_title,playlist)s/%(playlist_index)02d - %(title).100B [%(id)s].%(ext)s")
+                } else {
+                    addOption("--no-playlist")
+                    addOption("-o", "${targetDir.absolutePath}/%(title).100B [%(id)s].%(ext)s")
                 }
 
                 when (qualityId) {
@@ -142,19 +169,23 @@ object YoutubeDLEngine {
                         addOption("--audio-quality", "192K")
                     }
                     "1080p" -> {
-                        addOption("-f", "bestvideo[height<=?1080]+bestaudio/best[height<=?1080]/bestvideo+bestaudio/best")
+                        addOption("-f", "bestvideo*[height<=?1080]+bestaudio/best[height<=?1080]/bestvideo*+bestaudio/best")
+                        addOption("--format-sort", "res:1080,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         addOption("--merge-output-format", "mp4")
                     }
                     "720p" -> {
-                        addOption("-f", "bestvideo[height<=?720]+bestaudio/best[height<=?720]/bestvideo+bestaudio/best")
+                        addOption("-f", "bestvideo*[height<=?720]+bestaudio/best[height<=?720]/bestvideo*+bestaudio/best")
+                        addOption("--format-sort", "res:720,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         addOption("--merge-output-format", "mp4")
                     }
                     "480p" -> {
-                        addOption("-f", "bestvideo[height<=?480]+bestaudio/best[height<=?480]/bestvideo+bestaudio/best")
+                        addOption("-f", "bestvideo*[height<=?480]+bestaudio/best[height<=?480]/bestvideo*+bestaudio/best")
+                        addOption("--format-sort", "res:480,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         addOption("--merge-output-format", "mp4")
                     }
                     else -> {
-                        addOption("-f", "bestvideo+bestaudio/best")
+                        addOption("-f", "bestvideo*+bestaudio/best")
+                        addOption("--format-sort", "res,fps,vcodec:h264:vp9:av01,ext:mp4:m4a")
                         addOption("--merge-output-format", "mp4")
                     }
                 }
@@ -164,19 +195,20 @@ object YoutubeDLEngine {
                 onProgress(progress, eta, line ?: "")
             }
 
-            // Find the downloaded file in targetDir
-            val downloadedFiles = targetDir.listFiles { file ->
-                val name = file.name.lowercase()
-                file.isFile && (name.endsWith(".mp4") || name.endsWith(".mp3") || name.endsWith(".mkv") || name.endsWith(".m4a"))
-            }?.sortedByDescending { it.lastModified() }
+            // Find all completed media files in targetDir (including nested playlist folders)
+            val mediaExtensions = setOf("mp4", "mp3", "mkv", "m4a", "webm", "opus", "flac")
+            val downloadedFiles = targetDir.walkTopDown()
+                .filter { it.isFile && it.extension.lowercase() in mediaExtensions && !it.name.endsWith(".part") }
+                .sortedByDescending { it.lastModified() }
+                .toList()
 
-            val completedFile = downloadedFiles?.firstOrNull()
-                ?: throw IllegalStateException("Download finished but target media file not found on disk.")
+            if (downloadedFiles.isEmpty()) {
+                throw IllegalStateException("Download finished but target media file not found on disk.")
+            }
 
-            Result.success(completedFile)
+            Result.success(downloadedFiles)
         } catch (e: Exception) {
             val rawMsg = e.message ?: "Unknown error"
-            // Filter out verbose 90-day warning noise from failure reports
             val cleanMsg = rawMsg.lines()
                 .filterNot { it.contains("WARNING: Your yt-dlp version") || it.contains("Run \"yt-dlp --update\"") || it.contains("To suppress this warning") }
                 .joinToString("\n")

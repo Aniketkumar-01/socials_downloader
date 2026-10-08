@@ -12,7 +12,9 @@
 - **🔗 System Share Sheet Integration**: Tap **Share** inside YouTube, Instagram, or TikTok, select **OmniDownloader**, and the app instantly captures the URL and fetches formats.
 - **🗂️ Scoped Storage & MediaStore**: Automatically saves completed `.mp4` into `Movies/OmniDownloader` (visible in Gallery / Google Photos) and `.mp3` into `Music/OmniDownloader` (visible in music players).
 - **⚡ Foreground Service**: Downloads continue uninterrupted in the background even if the screen locks or you switch apps, with live progress in the Android notification tray.
-- **🍪 In-App Cookie & Bot Bypass**: Log in to YouTube or Instagram inside the secure in-app WebView to extract cookies and bypass bot verification challenges.
+- **⏯️ Pause & Resume**: Pause downloads at any time and resume seamlessly without losing progress.
+- **📚 Complete Playlist Downloads**: Download full YouTube playlists in one click with live per-item progress tracking.
+- **📊 Real-Time Estimated Sizes**: Displays accurate file size estimates directly on quality selection chips.
 - **🎨 Sleek Cyber-Obsidian UI**: Built with Jetpack Compose and Material 3, matching the desktop theme.
 
 ---
@@ -58,4 +60,3 @@ To install directly to a connected phone:
 - `com.omni.downloader.engine.StorageHelper`: Handles Scoped Storage and publishes completed files into Android's `MediaStore`.
 - `com.omni.downloader.service.DownloadForegroundService`: Uninterrupted background download service with persistent notifications.
 - `com.omni.downloader.ui.screens.MainScreen`: Jetpack Compose main UI.
-- `com.omni.downloader.ui.screens.WebViewAuthActivity`: In-app authentication & cookie extractor.

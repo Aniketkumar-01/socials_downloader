@@ -41,8 +41,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    initialSharedUrl: String? = null,
-    onOpenAuth: () -> Unit
+    initialSharedUrl: String? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -166,15 +165,6 @@ fun MainScreen(
                         }
                     }
 
-                    // Cookies & Auth Button
-                    IconButton(onClick = onOpenAuth, modifier = Modifier.padding(end = 4.dp)) {
-                        Icon(
-                            Icons.Default.Lock,
-                            contentDescription = "Cookies & Auth",
-                            tint = AccentTeal
-                        )
-                    }
-                }
             )
         }
     ) { innerPadding ->
@@ -385,7 +375,7 @@ fun MainScreen(
                             HorizontalDivider(color = BorderSubtle)
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Quality Chips - Uses LazyRow so chips never wrap/squish vertically
+                            // Quality Chips - Uses LazyRow with estimated sizes displayed
                             Text("Select Download Quality:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -400,12 +390,29 @@ fun MainScreen(
                                         selected = isSelected,
                                         onClick = { selectedQuality = quality.id },
                                         label = {
-                                            Text(
-                                                quality.label,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                maxLines = 1
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    quality.label,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    maxLines = 1
+                                                )
+                                                if (!quality.estimatedSizeFormatted.isNullOrBlank()) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        color = if (isSelected) BgDark.copy(alpha = 0.25f) else AccentTeal.copy(alpha = 0.15f),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            quality.estimatedSizeFormatted,
+                                                            fontSize = 10.sp,
+                                                            color = if (isSelected) BgDark else AccentTeal,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = AccentTeal,
@@ -417,9 +424,33 @@ fun MainScreen(
                                 }
                             }
 
+                            if (meta.isPlaylist) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Surface(
+                                    color = AccentTeal.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.PlaylistPlay, contentDescription = null, tint = AccentTeal, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Playlist detected • All items will be downloaded in full quality",
+                                            color = AccentTeal,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(16.dp))
 
                             // Download Button
+                            val downloadBtnText = if (meta.isPlaylist) "Download Entire Playlist" else "Download to Phone"
                             Button(
                                 onClick = {
                                     val isAudio = selectedQuality == "audio_mp3"
@@ -428,9 +459,15 @@ fun MainScreen(
                                         url = meta.url,
                                         quality = selectedQuality,
                                         title = meta.title,
-                                        isAudio = isAudio
+                                        isAudio = isAudio,
+                                        isPlaylist = meta.isPlaylist
                                     )
-                                    Toast.makeText(context, "Download started! Tap Downloads icon above to view progress.", Toast.LENGTH_SHORT).show()
+                                    val toastMsg = if (meta.isPlaylist) {
+                                        "Playlist download started! Tap Downloads icon above to view progress."
+                                    } else {
+                                        "Download started! Tap Downloads icon above to view progress."
+                                    }
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
@@ -438,9 +475,9 @@ fun MainScreen(
                                     .fillMaxWidth()
                                     .height(48.dp)
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = null, tint = BgDark)
+                                Icon(if (meta.isPlaylist) Icons.Default.PlaylistPlay else Icons.Default.Download, contentDescription = null, tint = BgDark)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Download to Phone", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = BgDark)
+                                Text(downloadBtnText, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = BgDark)
                             }
                         }
                     }
@@ -546,13 +583,14 @@ fun MainScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
+                                val isPaused = task.status == TaskStatus.PAUSED
                                 Surface(
-                                    color = AccentTeal.copy(alpha = 0.2f),
+                                    color = if (isPaused) AccentCyan.copy(alpha = 0.2f) else AccentTeal.copy(alpha = 0.2f),
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        "DOWNLOADING",
-                                        color = AccentTeal,
+                                        if (isPaused) "PAUSED" else "DOWNLOADING",
+                                        color = if (isPaused) AccentCyan else AccentTeal,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -568,7 +606,7 @@ fun MainScreen(
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp)),
-                                color = AccentTeal,
+                                color = if (isPaused) AccentCyan else AccentTeal,
                                 trackColor = BorderSubtle
                             )
 
@@ -578,8 +616,9 @@ fun MainScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                val itemProgress = if (task.totalItems > 1) "Item ${task.completedItems} of ${task.totalItems} • " else ""
                                 Text(
-                                    "${task.progressPercent.toInt()}% • Speed: ${task.speedFormatted}",
+                                    "$itemProgress${task.progressPercent.toInt()}% • Speed: ${task.speedFormatted}",
                                     fontSize = 11.sp,
                                     color = TextSecondary
                                 )
@@ -592,20 +631,58 @@ fun MainScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            OutlinedButton(
-                                onClick = {
-                                    DownloadForegroundService.cancelDownload(context)
-                                },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusError),
-                                border = BorderStroke(1.dp, StatusError.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(36.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Cancel Download", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                if (isPaused) {
+                                    Button(
+                                        onClick = {
+                                            DownloadForegroundService.resumeDownload(context)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(38.dp)
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Resume", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BgDark)
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            DownloadForegroundService.pauseDownload(context)
+                                        },
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentCyan),
+                                        border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.6f)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(38.dp)
+                                    ) {
+                                        Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Pause", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        DownloadForegroundService.cancelDownload(context)
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusError),
+                                    border = BorderStroke(1.dp, StatusError.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -825,7 +902,7 @@ private fun fetchDetails(
             val msg = if (error.message?.contains("instance not initialized") == true && com.omni.downloader.OmniApplication.initError != null) {
                 "Engine initialization error: ${com.omni.downloader.OmniApplication.initError}"
             } else {
-                error.message ?: "Could not fetch details. Check link or sign-in cookies."
+                error.message ?: "Could not fetch details. Please check the URL and internet connection."
             }
             onError(msg)
         }

@@ -4,6 +4,7 @@ enum class TaskStatus {
     IDLE,
     FETCHING,
     DOWNLOADING,
+    PAUSED,
     MERGING,
     COMPLETED,
     FAILED,
