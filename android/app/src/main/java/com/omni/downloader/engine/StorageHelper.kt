@@ -37,13 +37,29 @@ object StorageHelper {
         val resolver = context.contentResolver
         val fileName = sourceFile.name
 
+        val ext = sourceFile.extension.lowercase()
+        val isAudioActual = isAudio || ext in setOf("mp3", "m4a", "opus", "flac", "wav", "aac", "ogg")
+        val mimeType = when (ext) {
+            "mp3" -> "audio/mpeg"
+            "m4a" -> "audio/mp4"
+            "opus" -> "audio/opus"
+            "flac" -> "audio/flac"
+            "wav" -> "audio/wav"
+            "aac" -> "audio/aac"
+            "ogg" -> "audio/ogg"
+            "webm" -> if (isAudioActual) "audio/webm" else "video/webm"
+            "mkv" -> "video/x-matroska"
+            "mp4" -> "video/mp4"
+            else -> if (isAudioActual) "audio/mpeg" else "video/mp4"
+        }
+
         return try {
             val contentValues = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.TITLE, title)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val relativeDir = if (isAudio) {
+                    val relativeDir = if (isAudioActual) {
                         "${Environment.DIRECTORY_MUSIC}/OmniDownloader"
                     } else {
                         "${Environment.DIRECTORY_MOVIES}/OmniDownloader"
@@ -52,14 +68,10 @@ object StorageHelper {
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
-                if (isAudio) {
-                    put(MediaStore.MediaColumns.MIME_TYPE, "audio/mpeg")
-                } else {
-                    put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
-                }
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
             }
 
-            val collectionUri = if (isAudio) {
+            val collectionUri = if (isAudioActual) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
                 } else {

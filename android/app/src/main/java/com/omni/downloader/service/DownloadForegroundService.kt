@@ -180,19 +180,19 @@ class DownloadForegroundService : Service() {
 
     private fun runDownload() {
         downloadJob = serviceScope.launch {
-            val tempDir = StorageHelper.getTempDownloadDir(this@DownloadForegroundService)
+            val taskTempDir = java.io.File(StorageHelper.getTempDownloadDir(this@DownloadForegroundService), activeTaskId).apply { mkdirs() }
             val result = YoutubeDLEngine.executeDownload(
                 context = this@DownloadForegroundService,
                 url = activeUrl,
                 qualityId = activeQuality,
-                targetDir = tempDir,
+                targetDir = taskTempDir,
                 isPlaylist = activeIsPlaylist
             ) { progress, eta, line ->
                 val etaText = if (eta > 0) "${eta}s remaining" else ""
                 val speed = extractSpeed(line)
 
-                // Detect playlist progress lines: e.g. "Downloading video 3 of 12"
-                val playlistMatch = Regex("""Downloading (?:video|item)\s+(\d+)\s+of\s+(\d+)""").find(line)
+                // Detect playlist progress lines: e.g. "Downloading video 3 of 12" or "Downloading item 3 of 12"
+                val playlistMatch = Regex("""(?:Downloading\s+(?:video|item)|\[download\])\s*(\d+)\s+of\s+(\d+)""", RegexOption.IGNORE_CASE).find(line)
                 if (playlistMatch != null) {
                     playlistCompleted = playlistMatch.groupValues[1].toIntOrNull() ?: playlistCompleted
                     playlistTotal = playlistMatch.groupValues[2].toIntOrNull() ?: playlistTotal
@@ -237,6 +237,8 @@ class DownloadForegroundService : Service() {
                     file.delete()
                 }
 
+                taskTempDir.deleteRecursively()
+
                 DownloadTracker.updateProgress(
                     DownloadTaskProgress(
                         taskId = activeTaskId,
@@ -251,6 +253,7 @@ class DownloadForegroundService : Service() {
                 showCompleteNotification(activeTitle, savedCount)
                 stopSelf()
             }.onFailure { error ->
+                taskTempDir.deleteRecursively()
                 if (!isPaused && isActive) {
                     Log.e(TAG, "Download failed: ${error.message}", error)
                     DownloadTracker.updateProgress(

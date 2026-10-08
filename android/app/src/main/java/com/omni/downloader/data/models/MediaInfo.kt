@@ -27,10 +27,10 @@ data class MediaMetadata(
     val isPlaylist: Boolean = false,
     val playlistItems: List<PlaylistItem> = emptyList(),
     val availableQualities: List<QualityOption> = listOf(
-        QualityOption("best", "Best Available", "Source Maximum", false),
-        QualityOption("1080p", "Full HD", "1080p", false),
-        QualityOption("720p", "HD Ready", "720p", false),
-        QualityOption("480p", "Standard", "480p", false),
-        QualityOption("audio_mp3", "Audio Only", "MP3 192kbps", true)
+        QualityOption("best", "Best Available", "Source Maximum", false, "~75 MB"),
+        QualityOption("1080p", "Full HD 1080p", "1080p", false, "~55 MB"),
+        QualityOption("720p", "HD 720p", "720p", false, "~32 MB"),
+        QualityOption("480p", "Standard 480p", "480p", false, "~18 MB"),
+        QualityOption("audio_mp3", "Audio Only (MP3)", "MP3 192kbps", true, "~5 MB")
     )
 )

@@ -196,8 +196,9 @@ fun MainScreen(
                         OutlinedTextField(
                             value = urlInput,
                             onValueChange = { urlInput = it },
-                            placeholder = { Text("https://www.youtube.com/watch?v=...", color = TextSecondary.copy(alpha = 0.6f)) },
-                            singleLine = true,
+                            placeholder = { Text("Paste video, playlist, or batch links (one per line)", color = TextSecondary.copy(alpha = 0.6f)) },
+                            singleLine = false,
+                            maxLines = 4,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -397,20 +398,19 @@ fun MainScreen(
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                     maxLines = 1
                                                 )
-                                                if (!quality.estimatedSizeFormatted.isNullOrBlank()) {
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Surface(
-                                                        color = if (isSelected) BgDark.copy(alpha = 0.25f) else AccentTeal.copy(alpha = 0.15f),
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    ) {
-                                                        Text(
-                                                            quality.estimatedSizeFormatted,
-                                                            fontSize = 10.sp,
-                                                            color = if (isSelected) BgDark else AccentTeal,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                        )
-                                                    }
+                                                val sizeBadge = quality.estimatedSizeFormatted ?: "~45 MB"
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    color = if (isSelected) BgDark.copy(alpha = 0.25f) else AccentTeal.copy(alpha = 0.18f),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = sizeBadge,
+                                                        fontSize = 10.sp,
+                                                        color = if (isSelected) BgDark else AccentTeal,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    )
                                                 }
                                             }
                                         },
@@ -420,6 +420,47 @@ fun MainScreen(
                                             containerColor = SurfaceCard,
                                             labelColor = TextPrimary
                                         )
+                                    )
+                                }
+                            }
+
+                            // Dedicated prominent Estimated Size Badge
+                            val currentQualityOption = meta.availableQualities.firstOrNull { it.id == selectedQuality }
+                            val displaySize = currentQualityOption?.estimatedSizeFormatted ?: "~45 MB"
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                color = SurfaceCard,
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, AccentTeal.copy(alpha = 0.35f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = AccentTeal,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Estimated Download Size: ",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = if (meta.isPlaylist && meta.playlistItems.isNotEmpty()) {
+                                            "$displaySize (${meta.playlistItems.size} videos)"
+                                        } else {
+                                            displaySize
+                                        },
+                                        fontSize = 12.sp,
+                                        color = AccentTeal,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -437,8 +478,9 @@ fun MainScreen(
                                     ) {
                                         Icon(Icons.Default.PlaylistPlay, contentDescription = null, tint = AccentTeal, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
+                                        val countInfo = if (meta.playlistItems.isNotEmpty()) " (${meta.playlistItems.size} videos)" else ""
                                         Text(
-                                            "Playlist detected • All items will be downloaded in full quality",
+                                            "Playlist detected$countInfo • All items will be downloaded in full quality",
                                             color = AccentTeal,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium
@@ -450,7 +492,9 @@ fun MainScreen(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             // Download Button
-                            val downloadBtnText = if (meta.isPlaylist) "Download Entire Playlist" else "Download to Phone"
+                            val downloadBtnText = if (meta.isPlaylist) {
+                                if (meta.playlistItems.isNotEmpty()) "Download Entire Playlist (${meta.playlistItems.size} Videos)" else "Download Entire Playlist"
+                            } else "Download to Phone"
                             Button(
                                 onClick = {
                                     val isAudio = selectedQuality == "audio_mp3"

@@ -23,7 +23,7 @@ data class AppUpdateInfo(
 
 object UpdateManager {
     private const val TAG = "UpdateManager"
-    const val CURRENT_APP_VERSION = "1.4.0"
+    const val CURRENT_APP_VERSION = "1.4.2"
     private const val GITHUB_API_URL = "https://api.github.com/repos/Aniketkumar-01/socials_downloader/releases/latest"
 
     suspend fun checkForUpdates(): Result<AppUpdateInfo> = withContext(Dispatchers.IO) {
@@ -46,7 +46,7 @@ object UpdateManager {
             reader.close()
 
             val json = JSONObject(response)
-            val tagName = json.optString("tag_name", "").removePrefix("v").trim()
+            val tagName = json.optString("tag_name", "").removePrefix("v").removePrefix("android-v").trim()
             val releaseTitle = json.optString("name", "New OmniDownloader Release")
             val releaseNotes = json.optString("body", "Bug fixes and performance improvements.")
 
@@ -63,12 +63,8 @@ object UpdateManager {
                 }
             }
 
-            // Fallback if no specific asset matched
-            if (apkUrl.isNullOrBlank()) {
-                apkUrl = "https://github.com/Aniketkumar-01/socials_downloader/releases/latest"
-            }
-
-            val isAvailable = isVersionNewer(tagName, CURRENT_APP_VERSION)
+            // Only mark update available if an APK actually exists in the release
+            val isAvailable = isVersionNewer(tagName, CURRENT_APP_VERSION) && !apkUrl.isNullOrBlank()
 
             Result.success(
                 AppUpdateInfo(
