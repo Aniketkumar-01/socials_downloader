@@ -100,7 +100,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace || gradle assembleDebug --no-daemon --stacktrace
           mkdir -p ../dist-android
           cp app/build/outputs/apk/debug/app-debug.apk ../dist-android/OmniDownloader.apk
 
