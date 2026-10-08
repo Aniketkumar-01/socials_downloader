@@ -8,6 +8,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -64,6 +65,12 @@ fun MainScreen(
     var downloadApkProgress by remember { mutableStateOf(0) }
     var downloadApkStatus by remember { mutableStateOf("") }
     var downloadedApkFile by remember { mutableStateOf<java.io.File?>(null) }
+    var selectedPlaylistIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // Sync selected items whenever playlist metadata loads
+    LaunchedEffect(mediaMetadata) {
+        selectedPlaylistIds = mediaMetadata?.playlistItems?.map { it.id }?.toSet() ?: emptySet()
+    }
 
     // If shared URL arrived via Intent, auto-fetch
     LaunchedEffect(sharedUrl) {
@@ -515,9 +522,15 @@ fun MainScreen(
                                     ) {
                                         Icon(Icons.Default.PlaylistPlay, contentDescription = null, tint = AccentTeal, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        val countInfo = if (meta.playlistItems.isNotEmpty()) " (${meta.playlistItems.size} videos)" else ""
+                                        val totalCount = meta.playlistItems.size
+                                        val selCount = selectedPlaylistIds.size
+                                        val playlistText = if (totalCount > 0) {
+                                            "Playlist detected • $selCount of $totalCount items selected"
+                                        } else {
+                                            "Playlist detected • Full collection ready"
+                                        }
                                         Text(
-                                            "Playlist detected$countInfo • All items will be downloaded in full quality",
+                                            playlistText,
                                             color = AccentTeal,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium
@@ -528,43 +541,63 @@ fun MainScreen(
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Download Button
-                            val downloadBtnText = if (meta.isPlaylist) {
-                                if (meta.playlistItems.isNotEmpty()) "Download Entire Playlist (${meta.playlistItems.size} Videos)" else "Download Entire Playlist"
-                            } else "Download to Phone"
+                            // Download Button with Selective Playlist Download support
+                            val isPlaylist = meta.isPlaylist
+                            val hasItems = meta.playlistItems.isNotEmpty()
+                            val selectedCount = if (hasItems) selectedPlaylistIds.size else 0
+
+                            val downloadBtnText = when {
+                                isPlaylist && hasItems && selectedCount == meta.playlistItems.size -> "Download All (${selectedCount} Videos)"
+                                isPlaylist && hasItems && selectedCount > 0 -> "Download Selected (${selectedCount} Videos)"
+                                isPlaylist && hasItems && selectedCount == 0 -> "Select at least 1 video"
+                                isPlaylist -> "Download Entire Playlist"
+                                else -> "Download to Phone"
+                            }
+                            val isDownloadEnabled = !isPlaylist || !hasItems || selectedCount > 0
+
                             Button(
                                 onClick = {
                                     val isAudio = selectedQuality == "audio_mp3"
+                                    val isSubset = isPlaylist && hasItems && selectedCount < meta.playlistItems.size
+                                    val downloadUrl = if (isSubset) {
+                                        meta.playlistItems.filter { selectedPlaylistIds.contains(it.id) }.joinToString("\n") { it.url }
+                                    } else {
+                                        meta.url
+                                    }
                                     DownloadForegroundService.startDownload(
                                         context = context,
-                                        url = meta.url,
+                                        url = downloadUrl,
                                         quality = selectedQuality,
-                                        title = meta.title,
+                                        title = if (isSubset) "${meta.title} (${selectedCount} videos)" else meta.title,
                                         isAudio = isAudio,
-                                        isPlaylist = meta.isPlaylist
+                                        isPlaylist = if (isSubset) false else meta.isPlaylist
                                     )
-                                    val toastMsg = if (meta.isPlaylist) {
-                                        "Playlist download started! Tap Downloads icon above to view progress."
+                                    val toastMsg = if (isPlaylist) {
+                                        "Starting download for $selectedCount items! Tap Downloads icon to view progress."
                                     } else {
                                         "Download started! Tap Downloads icon above to view progress."
                                     }
                                     Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                                 },
+                                enabled = isDownloadEnabled,
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AccentTeal,
+                                    disabledContainerColor = BorderSubtle
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
                             ) {
                                 Icon(if (meta.isPlaylist) Icons.Default.PlaylistPlay else Icons.Default.Download, contentDescription = null, tint = BgDark)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(downloadBtnText, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = BgDark)
+                                Text(downloadBtnText, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (isDownloadEnabled) BgDark else TextSecondary)
                             }
                         }
                     }
                 }
 
-                // Playlist Items Section
+                // Interactive Playlist Items Section with Checkboxes & Select All
                 if (meta.isPlaylist && meta.playlistItems.isNotEmpty()) {
                     item {
                         Card(
@@ -573,25 +606,81 @@ fun MainScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    "Playlist Videos (${meta.playlistItems.size} items)",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            "Playlist Videos",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            "${selectedPlaylistIds.size} of ${meta.playlistItems.size} selected",
+                                            fontSize = 11.sp,
+                                            color = AccentCyan
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            selectedPlaylistIds = if (selectedPlaylistIds.size == meta.playlistItems.size) {
+                                                emptySet()
+                                            } else {
+                                                meta.playlistItems.map { it.id }.toSet()
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            if (selectedPlaylistIds.size == meta.playlistItems.size) "Deselect All" else "Select All",
+                                            color = AccentTeal,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                meta.playlistItems.take(50).forEachIndexed { idx, item ->
+                                meta.playlistItems.forEachIndexed { idx, item ->
+                                    val isSelected = selectedPlaylistIds.contains(item.id)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 6.dp),
+                                            .clickable {
+                                                selectedPlaylistIds = if (isSelected) {
+                                                    selectedPlaylistIds - item.id
+                                                } else {
+                                                    selectedPlaylistIds + item.id
+                                                }
+                                            }
+                                            .padding(vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Checkbox(
+                                            checked = isSelected,
+                                            onCheckedChange = { checked ->
+                                                selectedPlaylistIds = if (checked) {
+                                                    selectedPlaylistIds + item.id
+                                                } else {
+                                                    selectedPlaylistIds - item.id
+                                                }
+                                            },
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = AccentTeal,
+                                                uncheckedColor = TextSecondary,
+                                                checkmarkColor = BgDark
+                                            ),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text("${idx + 1}.", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(24.dp))
                                         Text(
                                             item.title,
-                                            color = TextPrimary,
+                                            color = if (isSelected) TextPrimary else TextSecondary.copy(alpha = 0.5f),
                                             fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,

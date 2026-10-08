@@ -28,7 +28,7 @@ data class AppUpdateInfo(
 
 object UpdateManager {
     private const val TAG = "UpdateManager"
-    const val CURRENT_APP_VERSION = "1.4.3"
+    const val CURRENT_APP_VERSION = "1.4.4"
     private const val GITHUB_API_URL = "https://api.github.com/repos/Aniketkumar-01/socials_downloader/releases/latest"
 
     suspend fun checkForUpdates(): Result<AppUpdateInfo> = withContext(Dispatchers.IO) {

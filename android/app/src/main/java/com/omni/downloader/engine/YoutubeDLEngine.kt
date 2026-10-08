@@ -217,8 +217,41 @@ object YoutubeDLEngine {
                     PlaylistItem(
                         id = "$idx",
                         title = "Video ${idx + 1}",
-                        url = u
+                        url = u,
+                        isSelected = true
                     )
+                }
+            } else if (isUrlPlaylist) {
+                try {
+                    val plRequest = YoutubeDLRequest(targetUrl).apply {
+                        addOption("--flat-playlist")
+                        addOption("--skip-download")
+                        addOption("--no-warnings")
+                        addOption("--no-check-certificates")
+                        addOption("--user-agent", BROWSER_USER_AGENT)
+                        addOption("--print", "%(id)s\t%(title)s")
+                    }
+                    val plResponse = YoutubeDL.getInstance().execute(plRequest)
+                    val rawLines = plResponse.out?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+                    rawLines.mapIndexed { idx, line ->
+                        val tabIdx = line.indexOf('\t')
+                        val id = if (tabIdx != -1) line.substring(0, tabIdx).trim() else line
+                        val title = if (tabIdx != -1) line.substring(tabIdx + 1).trim() else "Video ${idx + 1}"
+                        val videoUrl = if (targetUrl.contains("youtube.com") || targetUrl.contains("youtu.be")) {
+                            "https://www.youtube.com/watch?v=$id"
+                        } else {
+                            id
+                        }
+                        PlaylistItem(
+                            id = id,
+                            title = title.ifBlank { "Video ${idx + 1}" },
+                            url = videoUrl,
+                            isSelected = true
+                        )
+                    }
+                } catch (plErr: Exception) {
+                    Log.w(TAG, "Fast playlist entries extraction notice: ${plErr.message}")
+                    emptyList()
                 }
             } else {
                 emptyList()

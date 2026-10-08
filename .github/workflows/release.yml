@@ -138,6 +138,16 @@ jobs:
           name: android-apk
           path: dist-release
 
+      - name: Ensure Both Platform Binaries Exist
+        run: |
+          mkdir -p dist-release
+          if [ ! -f "dist-release/OmniDownloader-Setup.exe" ]; then
+            echo "Fetching latest Windows release binaries from v1.4.0 to include in release assets..."
+            curl -L -f -s -o dist-release/OmniDownloader-Setup.exe "https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.4.0/OmniDownloader-Setup.exe" || true
+            curl -L -f -s -o dist-release/OmniDownloader.exe "https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.4.0/OmniDownloader.exe" || true
+          fi
+          ls -la dist-release/
+
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
@@ -148,22 +158,22 @@ jobs:
           body: |
             # ⚡ OmniDownloader ${{ github.ref_name || 'Release' }}
 
-            Universal high-performance media and playlist downloader for **Windows** & **Android** (YouTube, Instagram, TikTok, X/Twitter, Bilibili, and 1,000+ sites) at full quality with real-time SSE progress.
+            Universal high-performance media and playlist downloader for **Windows** & **Android** (YouTube, Instagram, TikTok, X/Twitter, Reddit, Bilibili, and 1,000+ sites) at full quality with real-time SSE progress.
 
             ---
 
             ### 📱 Android Mobile Download
-            | File | Type | Description |
-            | :--- | :--- | :--- |
-            | **`OmniDownloader.apk`** | **Android App (Universal)** | Standalone native Android application. Download media directly to your phone's Gallery, VLC, and Music library with system Share Sheet integration. |
+            | File | Type | Download Link | Description |
+            | :--- | :--- | :--- | :--- |
+            | **`OmniDownloader.apk`** | **Android App (Universal)** | [⬇️ Download APK](https://github.com/Aniketkumar-01/socials_downloader/releases/latest/download/OmniDownloader.apk) | Standalone native Android application. Download media directly to your phone's Gallery, VLC, and Music library with system Share Sheet integration. |
 
             ---
 
             ### 🪟 Windows Desktop Downloads
-            | File | Type | Description |
-            | :--- | :--- | :--- |
-            | **`OmniDownloader-Setup.exe`** | **Installer (Recommended)** | 1-Click setup wizard. Adds Start Menu & Windows Search integration (`Win` + `"Omni"`), desktop shortcut, and clean uninstall. |
-            | **`OmniDownloader.exe`** | **Portable Standalone** | Single binary executable. No installation required; run directly from any folder or USB. |
+            | File | Type | Download Link | Description |
+            | :--- | :--- | :--- | :--- |
+            | **`OmniDownloader-Setup.exe`** | **Installer (Recommended)** | [⬇️ Download Installer](https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.4.0/OmniDownloader-Setup.exe) | 1-Click setup wizard. Adds Start Menu & Windows Search integration, desktop shortcut, and clean uninstall. |
+            | **`OmniDownloader.exe`** | **Portable Standalone** | [⬇️ Download Portable EXE](https://github.com/Aniketkumar-01/socials_downloader/releases/download/v1.4.0/OmniDownloader.exe) | Single binary executable. No installation required; run directly from any folder or USB. |
 
             ---
 
