@@ -3,15 +3,14 @@ package com.omni.downloader.ui.screens
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -31,7 +29,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.omni.downloader.data.DownloadTracker
 import com.omni.downloader.data.models.*
+import com.omni.downloader.engine.AppUpdateInfo
+import com.omni.downloader.engine.UpdateManager
 import com.omni.downloader.engine.YoutubeDLEngine
 import com.omni.downloader.service.DownloadForegroundService
 import com.omni.downloader.ui.theme.*
@@ -50,8 +51,15 @@ fun MainScreen(
     var isFetching by remember { mutableStateOf(false) }
     var mediaMetadata by remember { mutableStateOf<MediaMetadata?>(null) }
     var selectedQuality by remember { mutableStateOf("best") }
-    var activeProgress by remember { mutableStateOf<DownloadTaskProgress?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Download & Update state
+    val activeDownload by DownloadTracker.activeTask.collectAsState()
+    val downloadHistory by DownloadTracker.history.collectAsState()
+    var showDownloadsSheet by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
 
     // If initial shared URL arrived via Intent, auto-fetch
     LaunchedEffect(initialSharedUrl) {
@@ -108,6 +116,57 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    // Check Updates Button
+                    IconButton(onClick = {
+                        coroutineScope.launch {
+                            isCheckingUpdate = true
+                            val result = UpdateManager.checkForUpdates()
+                            result.onSuccess {
+                                updateInfo = it
+                                showUpdateDialog = true
+                            }.onFailure {
+                                Toast.makeText(context, "Update check: ${it.message}", Toast.LENGTH_SHORT).show()
+                            }
+                            isCheckingUpdate = false
+                        }
+                    }) {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = AccentCyan,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Check for Updates",
+                                tint = AccentCyan
+                            )
+                        }
+                    }
+
+                    // Downloads Center Button (with active badge)
+                    Box(contentAlignment = Alignment.Center) {
+                        IconButton(onClick = { showDownloadsSheet = true }) {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = "Downloads Center",
+                                tint = if (activeDownload != null) AccentTeal else TextPrimary
+                            )
+                        }
+                        if (activeDownload != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = (-6).dp, y = 6.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentTeal)
+                            )
+                        }
+                    }
+
+                    // Cookies & Auth Button
                     IconButton(onClick = onOpenAuth, modifier = Modifier.padding(end = 4.dp)) {
                         Icon(
                             Icons.Default.Lock,
@@ -326,15 +385,16 @@ fun MainScreen(
                             HorizontalDivider(color = BorderSubtle)
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Quality Chips
+                            // Quality Chips - Uses LazyRow so chips never wrap/squish vertically
                             Text("Select Download Quality:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            Row(
+                            LazyRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(horizontal = 2.dp)
                             ) {
-                                meta.availableQualities.forEach { quality ->
+                                items(meta.availableQualities) { quality ->
                                     val isSelected = quality.id == selectedQuality
                                     FilterChip(
                                         selected = isSelected,
@@ -343,7 +403,8 @@ fun MainScreen(
                                             Text(
                                                 quality.label,
                                                 fontSize = 12.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                maxLines = 1
                                             )
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
@@ -369,7 +430,7 @@ fun MainScreen(
                                         title = meta.title,
                                         isAudio = isAudio
                                     )
-                                    Toast.makeText(context, "Download started in background!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Download started! Tap Downloads icon above to view progress.", Toast.LENGTH_SHORT).show()
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
@@ -431,6 +492,320 @@ fun MainScreen(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+    }
+
+    // Downloads Center Bottom Sheet
+    if (showDownloadsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDownloadsSheet = false },
+            containerColor = SurfaceDark,
+            contentColor = TextPrimary
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Download, contentDescription = null, tint = AccentTeal)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Downloads Center", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    }
+                    IconButton(onClick = { showDownloadsSheet = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Active Download
+                activeDownload?.let { task ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    task.currentTitle.ifBlank { "Active Download" },
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    color = AccentTeal.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        "DOWNLOADING",
+                                        color = AccentTeal,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            LinearProgressIndicator(
+                                progress = (task.progressPercent / 100f).coerceIn(0f, 1f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = AccentTeal,
+                                trackColor = BorderSubtle
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "${task.progressPercent.toInt()}% • Speed: ${task.speedFormatted}",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    if (task.etaFormatted.isNotBlank()) "ETA: ${task.etaFormatted}" else "",
+                                    fontSize = 11.sp,
+                                    color = AccentCyan
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    DownloadForegroundService.cancelDownload(context)
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusError),
+                                border = BorderStroke(1.dp, StatusError.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Cancel Download", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                // Recent Downloads List
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Recent Downloads (${downloadHistory.size})",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary
+                    )
+                    if (downloadHistory.isNotEmpty()) {
+                        TextButton(onClick = { DownloadTracker.clearAllHistory() }) {
+                            Text("Clear All", fontSize = 11.sp, color = AccentCyan)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (activeDownload == null && downloadHistory.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.DownloadDone,
+                                contentDescription = null,
+                                tint = TextSecondary.copy(alpha = 0.4f),
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("No active or recent downloads", color = TextSecondary, fontSize = 13.sp)
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(downloadHistory) { historyItem ->
+                            Card(
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        if (historyItem.status == TaskStatus.COMPLETED) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = if (historyItem.status == TaskStatus.COMPLETED) StatusSuccess else StatusError,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            historyItem.currentTitle.ifBlank { "Media Item" },
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            if (historyItem.status == TaskStatus.COMPLETED) "Saved to Media Library" else historyItem.errorMessage ?: "Failed",
+                                            fontSize = 11.sp,
+                                            color = if (historyItem.status == TaskStatus.COMPLETED) AccentCyan else StatusError
+                                        )
+                                    }
+                                    IconButton(onClick = { DownloadTracker.removeHistoryItem(historyItem.taskId) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = TextSecondary.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // In-App Update Dialog
+    if (showUpdateDialog && updateInfo != null) {
+        val info = updateInfo!!
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            containerColor = SurfaceDark,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (info.isUpdateAvailable) Icons.Default.SystemUpdate else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = if (info.isUpdateAvailable) AccentTeal else StatusSuccess
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        if (info.isUpdateAvailable) "Update Available" else "OmniDownloader is Up to Date",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "Installed: v${info.currentVersion} • Latest: v${info.latestVersion}",
+                        fontSize = 12.sp,
+                        color = AccentCyan,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    if (info.isUpdateAvailable) {
+                        Text(
+                            "What's New:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 140.dp)
+                        ) {
+                            LazyColumn(modifier = Modifier.padding(10.dp)) {
+                                item {
+                                    Text(info.releaseNotes, fontSize = 11.sp, color = TextPrimary)
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            "You are running the newest release of OmniDownloader. You can also update the embedded yt-dlp core engine for latest platform fixes.",
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (info.isUpdateAvailable && info.apkDownloadUrl != null) {
+                    Button(
+                        onClick = {
+                            UpdateManager.openDownloadUrl(context, info.apkDownloadUrl)
+                            showUpdateDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Download APK", color = BgDark, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                Toast.makeText(context, "Updating yt-dlp core...", Toast.LENGTH_SHORT).show()
+                                val result = YoutubeDLEngine.updateYtDlpCore(context)
+                                result.onSuccess {
+                                    Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                                }.onFailure {
+                                    Toast.makeText(context, "Update failed: ${it.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            showUpdateDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                    ) {
+                        Text("Update yt-dlp Core", color = BgDark, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text("Close", color = TextSecondary)
+                }
+            }
+        )
     }
 }
 

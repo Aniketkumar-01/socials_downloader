@@ -25,6 +25,20 @@ object YoutubeDLEngine {
     }
 
     /**
+     * Updates the embedded yt-dlp core to the latest upstream release.
+     */
+    suspend fun updateYtDlpCore(context: Context): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            ensureInitialized(context)
+            val status = YoutubeDL.getInstance().updateYoutubeDL(context.applicationContext)
+            Result.success("Engine updated successfully ($status)")
+        } catch (e: Exception) {
+            Log.e(TAG, "yt-dlp update error: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Extracts video and playlist metadata without downloading media.
      */
     suspend fun fetchMetadata(context: Context, url: String): Result<MediaMetadata> = withContext(Dispatchers.IO) {
@@ -34,6 +48,10 @@ object YoutubeDLEngine {
                 addOption("--skip-download")
                 addOption("--flat-playlist")
                 addOption("--no-warnings")
+                addOption("--no-update")
+                // Bypass SABR streaming skips by forcing Android and Web client endpoints
+                addOption("--extractor-args", "youtube:player_client=android,web")
+
                 val cookiesFile = StorageHelper.getAppCookiesFile(context)
                 if (cookiesFile.exists() && cookiesFile.length() > 0) {
                     addOption("--cookies", cookiesFile.absolutePath)
@@ -52,7 +70,6 @@ object YoutubeDLEngine {
 
             val isPlaylist = url.contains("playlist", ignoreCase = true) || url.contains("list=", ignoreCase = true)
             val playlistItems = emptyList<PlaylistItem>()
-
 
             val platform = when {
                 url.contains("youtube.com", true) || url.contains("youtu.be", true) -> "YouTube"
@@ -108,6 +125,10 @@ object YoutubeDLEngine {
                 addOption("-o", "${targetDir.absolutePath}/%(title).100B [%(id)s].%(ext)s")
                 addOption("--no-mtime")
                 addOption("--windows-filenames")
+                addOption("--no-warnings")
+                addOption("--no-update")
+                // Use Android client formats to bypass YouTube SABR video/audio stream block
+                addOption("--extractor-args", "youtube:player_client=android,web")
 
                 val cookiesFile = StorageHelper.getAppCookiesFile(context)
                 if (cookiesFile.exists() && cookiesFile.length() > 0) {
@@ -121,15 +142,15 @@ object YoutubeDLEngine {
                         addOption("--audio-quality", "192K")
                     }
                     "1080p" -> {
-                        addOption("-f", "bestvideo[height<=?1080]+bestaudio/best[height<=?1080]/best")
+                        addOption("-f", "bestvideo[height<=?1080]+bestaudio/best[height<=?1080]/bestvideo+bestaudio/best")
                         addOption("--merge-output-format", "mp4")
                     }
                     "720p" -> {
-                        addOption("-f", "bestvideo[height<=?720]+bestaudio/best[height<=?720]/best")
+                        addOption("-f", "bestvideo[height<=?720]+bestaudio/best[height<=?720]/bestvideo+bestaudio/best")
                         addOption("--merge-output-format", "mp4")
                     }
                     "480p" -> {
-                        addOption("-f", "bestvideo[height<=?480]+bestaudio/best[height<=?480]/best")
+                        addOption("-f", "bestvideo[height<=?480]+bestaudio/best[height<=?480]/bestvideo+bestaudio/best")
                         addOption("--merge-output-format", "mp4")
                     }
                     else -> {
@@ -154,8 +175,14 @@ object YoutubeDLEngine {
 
             Result.success(completedFile)
         } catch (e: Exception) {
-            Log.e(TAG, "Download execution failed: ${e.message}", e)
-            Result.failure(e)
+            val rawMsg = e.message ?: "Unknown error"
+            // Filter out verbose 90-day warning noise from failure reports
+            val cleanMsg = rawMsg.lines()
+                .filterNot { it.contains("WARNING: Your yt-dlp version") || it.contains("Run \"yt-dlp --update\"") || it.contains("To suppress this warning") }
+                .joinToString("\n")
+                .trim()
+            Log.e(TAG, "Download execution failed: $cleanMsg", e)
+            Result.failure(Exception(if (cleanMsg.isNotBlank()) cleanMsg else rawMsg, e))
         }
     }
 }
