@@ -123,7 +123,11 @@ class AppUpdater:
             file_size = chosen_asset.get("size", 0) if chosen_asset else 0
             asset_name = chosen_asset.get("name", "") if chosen_asset else ""
 
-            update_available = is_version_newer(tag_name, APP_VERSION)
+            update_available = (
+                is_version_newer(tag_name, APP_VERSION)
+                and (chosen_asset is not None)
+                and not tag_name.lower().startswith("android")
+            )
 
             result = {
                 "status": "success",

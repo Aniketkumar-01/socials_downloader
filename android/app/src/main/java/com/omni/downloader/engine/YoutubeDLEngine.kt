@@ -113,41 +113,16 @@ object YoutubeDLEngine {
                 String.format(Locale.US, "%02d:%02d", mins, secs)
             } else null
 
-            // Extract entries if available from playlist info
-            val entries: List<VideoInfo>? = try {
-                videoInfo?.entries
-            } catch (e: Exception) {
-                null
-            }
-
-            val playlistItems = when {
-                isMultiBatch -> {
-                    rawUrls.mapIndexed { idx, u ->
-                        PlaylistItem(
-                            id = "$idx",
-                            title = "Video ${idx + 1}",
-                            url = u
-                        )
-                    }
+            val playlistItems = if (isMultiBatch) {
+                rawUrls.mapIndexed { idx, u ->
+                    PlaylistItem(
+                        id = "$idx",
+                        title = "Video ${idx + 1}",
+                        url = u
+                    )
                 }
-                entries != null && entries.isNotEmpty() -> {
-                    entries.mapIndexed { idx, item ->
-                        val itemDuration = item.duration
-                        val itemDurFormatted = if (itemDuration > 0) {
-                            val mins = itemDuration / 60
-                            val secs = itemDuration % 60
-                            String.format(Locale.US, "%02d:%02d", mins, secs)
-                        } else null
-                        PlaylistItem(
-                            id = item.id ?: "${idx + 1}",
-                            title = item.title ?: "Video ${idx + 1}",
-                            url = item.webpageUrl ?: item.url ?: "https://www.youtube.com/watch?v=${item.id ?: ""}",
-                            durationFormatted = itemDurFormatted,
-                            thumbnail = item.thumbnail
-                        )
-                    }
-                }
-                else -> emptyList()
+            } else {
+                emptyList()
             }
 
             val totalItemCount = if (playlistItems.isNotEmpty()) playlistItems.size else if (isPlaylistUrl) 10 else 1

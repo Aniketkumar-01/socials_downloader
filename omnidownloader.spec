@@ -77,10 +77,22 @@ for pkg in ['uvicorn', 'fastapi', 'starlette', 'sse_starlette', 'yt_dlp', 'platf
 
 hiddenimports = sorted(list(set(hiddenimports)))
 
+# Collect VC++ runtime DLLs and Python DLLs to guarantee python311.dll loads on any Windows PC
+py_dir = Path(sys.base_prefix)
+extra_binaries = []
+for dll_name in ['python311.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'ucrtbase.dll']:
+    dll_path = py_dir / dll_name
+    if dll_path.exists():
+        extra_binaries.append((str(dll_path), '.'))
+    else:
+        sys32_path = Path(r"C:\Windows\System32") / dll_name
+        if sys32_path.exists():
+            extra_binaries.append((str(sys32_path), '.'))
+
 a = Analysis(
     ['launcher.py'],
     pathex=[str(root_dir), str(root_dir / 'backend')],
-    binaries=[],
+    binaries=extra_binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -109,7 +121,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # Disabled: UPX corrupts python311.dll and causes 'Failed to load Python DLL' LoadLibrary errors
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # Windowed standalone desktop app - no black CMD window
