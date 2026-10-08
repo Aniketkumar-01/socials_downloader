@@ -40,20 +40,9 @@ object YoutubeDLEngine {
                 String.format("%02d:%02d", mins, secs)
             } else null
 
-            val isPlaylist = videoInfo.entries != null && videoInfo.entries.isNotEmpty()
-            val playlistItems = if (isPlaylist) {
-                videoInfo.entries.mapIndexed { index, entry ->
-                    PlaylistItem(
-                        id = entry.id ?: "$index",
-                        title = entry.title ?: "Item ${index + 1}",
-                        url = entry.url ?: url,
-                        thumbnail = entry.thumbnail,
-                        isSelected = true
-                    )
-                }
-            } else {
-                emptyList()
-            }
+            val isPlaylist = url.contains("playlist", ignoreCase = true) || url.contains("list=", ignoreCase = true)
+            val playlistItems = emptyList<PlaylistItem>()
+
 
             val platform = when {
                 url.contains("youtube.com", true) || url.contains("youtu.be", true) -> "YouTube"
