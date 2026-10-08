@@ -15,11 +15,21 @@ import java.io.File
 object YoutubeDLEngine {
     private const val TAG = "YoutubeDLEngine"
 
+    private fun ensureInitialized(context: Context) {
+        try {
+            YoutubeDL.getInstance().init(context.applicationContext)
+            com.yausername.ffmpeg.FFmpeg.getInstance().init(context.applicationContext)
+        } catch (e: Exception) {
+            Log.w(TAG, "Engine init check: ${e.message}")
+        }
+    }
+
     /**
      * Extracts video and playlist metadata without downloading media.
      */
     suspend fun fetchMetadata(context: Context, url: String): Result<MediaMetadata> = withContext(Dispatchers.IO) {
         try {
+            ensureInitialized(context)
             val request = YoutubeDLRequest(url).apply {
                 addOption("--skip-download")
                 addOption("--flat-playlist")
@@ -93,6 +103,7 @@ object YoutubeDLEngine {
         onProgress: (progress: Float, etaInSeconds: Long, line: String) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
+            ensureInitialized(context)
             val request = YoutubeDLRequest(url).apply {
                 addOption("-o", "${targetDir.absolutePath}/%(title).100B [%(id)s].%(ext)s")
                 addOption("--no-mtime")

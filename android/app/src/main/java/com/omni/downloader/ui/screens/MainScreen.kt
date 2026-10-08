@@ -447,7 +447,12 @@ private fun fetchDetails(
         result.onSuccess { metadata ->
             onSuccess(metadata)
         }.onFailure { error ->
-            onError(error.message ?: "Could not fetch details. Check link or sign-in cookies.")
+            val msg = if (error.message?.contains("instance not initialized") == true && com.omni.downloader.OmniApplication.initError != null) {
+                "Engine initialization error: ${com.omni.downloader.OmniApplication.initError}"
+            } else {
+                error.message ?: "Could not fetch details. Check link or sign-in cookies."
+            }
+            onError(msg)
         }
     }
 }

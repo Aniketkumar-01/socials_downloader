@@ -53,4 +53,5 @@ desktop.py
 push.bat
 push.ps1
 push_to_github.bat
+update_tag.py
 

@@ -13,6 +13,7 @@ class OmniApplication : Application() {
     companion object {
         const val CHANNEL_ID = "omni_downloader_channel"
         private const val TAG = "OmniApplication"
+        var initError: String? = null
     }
 
     override fun onCreate() {
@@ -31,6 +32,7 @@ class OmniApplication : Application() {
             FFmpeg.getInstance().init(this)
             Log.i(TAG, "Embedded FFmpeg engine successfully initialized.")
         } catch (e: Exception) {
+            initError = e.message ?: e.toString()
             Log.e(TAG, "Failed to initialize embedded download engine: ${e.message}", e)
         }
     }
